@@ -3,6 +3,24 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261124
+
+- Bugfix: tools/prepare_release.py writes no ## Unreleased heading, as the changelog keeps none
+- Bugfix: a MIG slice in use no longer turns the idle whole GPUs of its node into a gray ?
+- CI: branch coverage floor rises from 91% to 93% (COVERAGE_BRANCH_MIN); 3.15.2 measures 93.04%
+- CI: nox and zizmor are pinned where they start: uvx nox@2026.10.20 (needs_version), zizmor@1.32.0
+- CI: the coverage job runs Python 3.15.2, like build.yml's newest lane (was 3.14.8)
+- CI: nox runs Python 3.12.3, as CI's modern-python lanes do; QTOP_NOX_PYTHON overrides it
+- Docs: local-testing.md says which GitHub/GitLab jobs run the suite, and on which Python
+- Feature: Slurm notes count the GPUs/TPUs/NPUs in use shown ?, and say why their jobs are unknown
+- Feature: MIG slices get matrix cells after the whole GPUs: the user of their job, or a gray %
+- Feature: GPUs held by unseen jobs warn to run qtop --all, unless slurm_diagnostics says it ran
+- Feature: accelerator_map lists the MIG slices a Slurm job holds, as mig4-5=103
+- Feature: running GPU jobs missing from squeue are listed from scontrol details, with a note
+- Feature: unreadable sinfo Gres/GresUsed: a WARNING names a node, its value and what to check
+- Tests: CHANGELOG top heading, manpage date and EasyBuild recipe must agree with __version__
+- Release: update version metadata to 0.9.20261124
+
 ## 0.9.20261123
 
 - Bugfix: core_api.collect_state() reads SOURCEDIR traces in place, not from the workdir

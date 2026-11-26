@@ -1,6 +1,7 @@
-# Copyright (c) 2026 qtop contributors
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -19,6 +20,17 @@ def test_release_preview_preserves_history_and_does_not_write():
     assert edits["CHANGELOG.md"].split("## " + __version__, 1)[1] == before.split("## " + __version__, 1)[1]
     assert '"2099-01-01" "qtop 0.9.20990101"' in edits["docs/qtop.1"]
     assert edits["docs/qtop-%s-GCCcore-14.3.0.eb" % __version__] is None
+    assert not re.search(r"^## Unreleased$", edits["CHANGELOG.md"], re.M)  # notes go under the release heading
+    assert edits["CHANGELOG.md"].split("\n## ", 2)[1].startswith("0.9.20990101\n")
+
+
+def test_release_metadata_agrees_with_package_version():
+    date = "%s-%s-%s" % (__version__[4:8], __version__[8:10], __version__[10:12])
+    assert re.search(r"^## (.+)$", (ROOT / "CHANGELOG.md").read_text(), re.M).group(1) == __version__
+    assert '.TH QTOP 1 "%s" "qtop %s"' % (date, __version__) in (ROOT / "docs/qtop.1").read_text()
+    recipes = sorted(path.name for path in (ROOT / "docs").glob("qtop-*-GCCcore-*.eb"))
+    assert recipes == ["qtop-%s-GCCcore-14.3.0.eb" % __version__]
+    assert "version = '%s'" % __version__ in (ROOT / "docs" / recipes[0]).read_text()
 
 
 @pytest.mark.parametrize("version", ("0.9.20260230", __version__, "bad"))

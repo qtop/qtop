@@ -269,7 +269,7 @@ remain covered by `tests/test_sample.py`. Live evidence remains open in ROADMAP.
 ## Coverage interpretation
 
 The shared coverage targets measure branches as well as statements. Runtime
-statement coverage has a 95% floor; branch coverage has a separate 91%
+statement coverage has a 95% floor; branch coverage has a separate 93%
 floor, so one metric cannot conceal a regression in the other. Coverage.py's
 `TOTAL` combines statements and branches; the gate compares their unrounded
 percentages separately. The JSON report
@@ -322,8 +322,9 @@ inherited by instrumented subprocesses and contaminate their stderr. GitHub
 and GitLab therefore use the same branch-capable default, keeping exact-output
 assertions intact. Explicit local core overrides remain available.
 
-The GitHub coverage-qtop job is the exception: it runs on CPython 3.14, where
-the sysmon core measures branches, with `COVERAGE_CORE=sysmon`. That cuts the
+The GitHub coverage-qtop job is the exception: it runs on CPython 3.15.2, like
+build.yml's newest lane, where the sysmon core measures branches, with
+`COVERAGE_CORE=sysmon`. That cuts the
 instrumented suite by about a quarter. The gate covers `qtop_py/` only, so the
 Atheris tests skipped there (atheris is pinned to 3.12) do not affect it.
 

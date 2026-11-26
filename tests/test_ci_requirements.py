@@ -27,6 +27,25 @@ def test_pre_commit_ruff_matches_the_ci_pin():
     assert hook_rev and ci_pin and hook_rev.group(1) == ci_pin.group(1)
 
 
+def test_nox_is_pinned_where_it_is_launched():
+    """nox installs requirements-ci.txt, so its pin lives in the commands that start it; Dependabot does not see them."""
+    root = Path(__file__).resolve().parents[1]
+    noxfile = (root / "noxfile.py").read_text()
+    minimum = re.search(r'^nox\.needs_version = ">=(\S+)"', noxfile, re.M)
+    assert minimum
+    text = noxfile + (root / "docs/local-testing.md").read_text()
+    assert set(re.findall(r"\b(?:uvx nox@|pipx install nox==)([0-9][0-9.]*[0-9])", text)) == {minimum.group(1)}
+    assert not re.findall(r"\b(?:uvx|pipx install) nox\b(?![@=])", text)  # every launch names the version
+    assert not re.search(r"^nox\b", (root / "requirements-ci.txt").read_text(), re.M)
+
+
+def test_zizmor_runs_the_osps_tools_pin():
+    makefile = (Path(__file__).resolve().parents[1] / "Makefile").read_text()
+    launched = re.search(r"^ZIZMOR \?= \$\(UVX\) --quiet zizmor@(\S+)$", makefile, re.M)
+    osps = re.search(r"^OSPS_TOOLS \?= .*\bzizmor==(\S+)", makefile, re.M)
+    assert launched and osps and launched.group(1) == osps.group(1)
+
+
 @pytest.mark.parametrize(
     "python_version,accepted,rejected",
     (

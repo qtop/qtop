@@ -76,7 +76,12 @@ def node_busy(node: Mapping[str, Any]) -> bool:
 
 SLURM_EXTENSION: "Final" = ExtensionSpec(
     "Slurm",
-    diagnostics=("slurm_diagnostics", ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists")),
+    # all_partitions: 1 when the commands ran with --all; jobs_from_scontrol: running jobs squeue missed (listed from
+    # scontrol); the other counters make a snapshot incomplete
+    diagnostics=(
+        "slurm_diagnostics",
+        ("rejected_squeue_rows", "rejected_sinfo_rows", "jobs_with_missing_nodes", "jobs_with_invalid_nodelists", "all_partitions", "jobs_from_scontrol"),
+    ),
     node_job_fields=NODE_JOB_FIELDS,
     job_identities=JOB_IDENTITIES,
     validate_job=validate_job,

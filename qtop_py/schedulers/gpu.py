@@ -7,7 +7,7 @@ from before TPU/NPU support keep their meaning.
 """
 
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from qtop_py.core_hostlist import HostlistParser
 
@@ -139,20 +139,57 @@ def node_devices(node: "Mapping[str, Any]", kind: str) -> List[int]:
     return sorted(devices)
 
 
+def node_slices(node: "Mapping[str, Any]", kind: str) -> List[int]:
+    """Return the MIG slice indices of a kind configured on a node; slices without indices follow its whole devices."""
+    taken = node_devices(node, kind)
+    slices: List[int] = []
+    for resource in node.get("slurm_gpu_configured") or []:
+        if resource_kind(resource) != kind or resource["mig_profile"] is None:
+            continue
+        indices = resource["device_indices"]
+        if indices is None:
+            start = max(taken + slices) + 1 if taken or slices else 0
+            indices = list(range(start, start + min(resource["count"], MAX_GPU_INDICES)))
+        slices.extend(index for index in indices if index not in slices and index not in taken)
+    return sorted(slices)
+
+
+def slice_jobs(node: "Mapping[str, Any]", kind: str, index: int) -> List[str]:
+    """The IDs of the jobs whose GRES indices on the node include the MIG slice."""
+    bindings = node.get("slurm_gpu_bindings", [])
+    return sorted({b["job_id"] for b in bindings if resource_kind(b) == kind and b.get("mig_profile") is not None and index in (b.get("device_indices") or [])})
+
+
+def _device_jobs(node: "Mapping[str, Any]", kind: str, index: int) -> List[str]:
+    """The IDs of the jobs whose GRES indices on the node include the whole device."""
+    bindings = node.get("slurm_gpu_bindings", [])
+    return sorted({b["job_id"] for b in bindings if resource_kind(b) == kind and b.get("mig_profile") is None and index in (b.get("device_indices") or [])})
+
+
+def _whole_device_usage(node: "Mapping[str, Any]", kind: str) -> "Tuple[bool, List[int]]":
+    """Whether Slurm's usage of a kind on the node names its whole devices, and the indices it lists as in use.
+
+    Only whole-device entries say which whole devices are idle: MIG slices in use do not, since they may sit on any
+    of them, but beside a whole-device entry they say nothing of the whole devices it covers.
+    """
+    used = [resource for resource in node.get("slurm_gpu_used") or [] if resource_kind(resource) == kind]
+    whole = [resource for resource in used if resource["mig_profile"] is None]
+    known = bool(whole) and all(resource["count"] == 0 or resource["device_indices"] is not None for resource in whole)
+    return known, [index for resource in whole for index in resource["device_indices"] or []]
+
+
 def device_status(node: "Mapping[str, Any]", kind: str, index: int) -> str:
     """Return who holds a device: its job IDs joined by /, "idle", or "?" when Slurm's usage does not say."""
-    jobs = sorted(
-        {
-            binding["job_id"]
-            for binding in node.get("slurm_gpu_bindings", [])
-            if resource_kind(binding) == kind and binding.get("mig_profile") is None and index in (binding.get("device_indices") or [])
-        }
-    )
+    jobs = _device_jobs(node, kind, index)
     if jobs:
         return "/".join(jobs)
-    used = [resource for resource in node.get("slurm_gpu_used") or [] if resource_kind(resource) == kind]
-    known = bool(used) and all(resource["count"] == 0 or (resource["device_indices"] is not None and resource["mig_profile"] is None) for resource in used)
-    return "idle" if known and not any(index in (resource["device_indices"] or []) for resource in used) else "?"
+    known, in_use = _whole_device_usage(node, kind)
+    return "idle" if known and index not in in_use else "?"
+
+
+def held_by_unseen_job(node: "Mapping[str, Any]", kind: str, index: int) -> bool:
+    """True for a "?" device that Slurm lists in use, but that no job in the squeue and scontrol details holds."""
+    return not _device_jobs(node, kind, index) and index in _whole_device_usage(node, kind)[1]
 
 
 def _runs(devices: Sequence[int], statuses: Sequence[str]) -> List[str]:
@@ -171,7 +208,8 @@ def _runs(devices: Sequence[int], statuses: Sequence[str]) -> List[str]:
 def accelerator_map_lines(nodes: Sequence[Mapping[str, Any]], kinds: Sequence[str] = ACCELERATOR_KINDS) -> List[str]:
     """One line per node with accelerators: each GPU, TPU and NPU with its jobs, e.g. "n1: gpu0-1=101 gpu2-7=idle".
 
-    Any number of devices; consecutive devices of the same status share one label. kinds limits the
+    Any number of devices; consecutive devices of the same status share one label. MIG slices that a
+    Slurm job holds follow as "mig4-5=103"; the matrix shows the others as %. kinds limits the
     kinds shown (matrix_accelerators).
     """
     lines = []
@@ -180,6 +218,9 @@ def accelerator_map_lines(nodes: Sequence[Mapping[str, Any]], kinds: Sequence[st
         for kind in (kind for kind in ACCELERATOR_KINDS if kind in kinds):
             devices = node_devices(node, kind)
             labels.extend(kind + label for label in _runs(devices, [device_status(node, kind, index) for index in devices]))
+            held = [(index, "/".join(slice_jobs(node, kind, index))) for index in node_slices(node, kind)]
+            held = [(index, jobs) for index, jobs in held if jobs]
+            labels.extend("mig" + label for label in _runs([index for index, _ in held], [jobs for _, jobs in held]))
         if labels:
             lines.append("%s: %s" % (node["domainname"], " ".join(labels)))
     return lines

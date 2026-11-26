@@ -268,7 +268,7 @@ make coverage
 
 That target runs `coverage.py` through the same `PYTHON` override used by the
 other targets. It independently enforces runtime statement coverage through
-`COVERAGE_MIN` (95%) and branch coverage through `COVERAGE_BRANCH_MIN` (91%).
+`COVERAGE_MIN` (95%) and branch coverage through `COVERAGE_BRANCH_MIN` (93%).
 Developer-tool coverage is printed separately without diluting those floors.
 `make coverage-xml` enforces both floors before emitting runtime Cobertura.
 Coverage.py's combined TOTAL is not the gate; no runtime files or lines are

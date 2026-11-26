@@ -1,5 +1,5 @@
-# Copyright (c) 2026 qtop contributors
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 import pytest
 
 from tools.deterministic_fuzz import DOCUMENT_TARGETS, exercise_document

@@ -3,6 +3,7 @@
 """GPUs, TPUs and NPUs of any count: Slurm GRES parsing, the per-device map, replay and -A."""
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -252,3 +253,125 @@ def test_untransposed_gpu_lines_sit_between_dashed_rules(tmp_path):
     assert [line.rsplit("=", 1)[1] for line in lines[start + 1 : start + 5]] == ["Gpu0", "Gpu1", "Gpu2", "Gpu3"]
     assert lines[start + 5] == "--" and lines[start + 6].endswith("=Cpu0")
     assert "--" not in _qtop(tmp_path, "-T", "-o", "matrix_accelerators=none")  # no devices shown, no rules
+
+
+def test_a_mig_slice_in_use_leaves_idle_whole_gpus_idle(tmp_path):
+    state = slurm_state(
+        tmp_path,
+        "node1|acc|mix|8|gpu:a100:4(S:0),gpu:a100_3g.20gb:2(S:0)|gpu:a100:3(IDX:0-2),gpu:a100_3g.20gb:1(IDX:4)\n",
+        "JobId=101\n Nodes=node1 GRES=gpu:a100:2(IDX:0-1)\nJobId=102\n Nodes=node1 GRES=gpu:a100:1(IDX:2)\n",
+    )
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-1=101 gpu2=102 gpu3=idle"]
+
+
+def _placement(state, config=None, all_partitions=False):
+    snapshot = SimpleNamespace(_diagnostics={"slurm_diagnostics": {"all_partitions": 1}} if all_partitions else {})
+    return [line for line in SlurmBatchSystem.display_messages("placement", snapshot, state["nodes"], config or {}) if "accelerators" in line]
+
+
+def test_gpus_held_by_unseen_jobs_ask_for_all_unless_it_was_used(tmp_path):
+    sinfo = "node1|acc|mix|8|gpu:a100:4(S:0)|gpu:a100:4(IDX:0-3)\n"
+    details = "JobId=101\n Nodes=node1 CPU_IDs=0-1 GRES=gpu:a100:2(IDX:0-1)\nJobId=102\n Nodes=node1 CPU_IDs=2 GRES=gpu:a100:1(IDX:2)\n"
+    state = slurm_state(tmp_path, sinfo, details)
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-1=101 gpu2=102 gpu3=?"]
+    warning, info = _placement(state)
+    assert warning == "WARNING: Slurm accelerators: 1 GPU in use by jobs qtop does not see show ?: run qtop --all for hidden partitions."
+    assert info.startswith("INFO: Slurm accelerators: if --all does not name their jobs, PrivateData=jobs")
+    (line,) = _placement(state, all_partitions=True)
+    assert line.startswith("INFO: Slurm accelerators: 1 GPU in use by jobs qtop does not see show ?, even with --all: PrivateData=jobs")
+    assert _placement(state, {"matrix_accelerators": ()}) == []  # hidden kinds, no note
+    seen = slurm_state(tmp_path, sinfo.replace("4(IDX:0-3)", "3(IDX:0-2)"), details)
+    assert _placement(seen) == []  # every GPU in use has its job: nothing to explain
+
+
+@pytest.mark.parametrize(("all_partitions", "source", "recorded"), ((True, None, {"all_partitions": 1}), (False, None, None), (True, "/traces", None)))
+def test_diagnostics_record_live_collection_with_all(tmp_path, all_partitions, source, recorded):
+    paths = {}
+    for name, text in (("squeue", "101|alice|R|acc|1|node1\n"), ("sinfo", "node1|acc|mix|8\n")):
+        (tmp_path / (name + ".txt")).write_text(text)
+        paths[name + "_file"] = str(tmp_path / (name + ".txt"))
+    slurm = SlurmBatchSystem(paths, {}, BackendOptions(ALL_PARTITIONS=all_partitions, SOURCEDIR=source))
+    state = slurm.get_cluster_state(slurm.options)
+    assert state.get("slurm_diagnostics") == recorded  # saved traces may come from either, so replay records nothing
+    snapshot = SimpleNamespace(_diagnostics={"slurm_diagnostics": {"all_partitions": 1}})
+    assert SlurmBatchSystem.display_messages("snapshot", snapshot, [], {}) == []  # --all alone is no incomplete snapshot
+
+
+def test_gpus_in_use_without_allocation_details_are_counted(tmp_path):
+    state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:a100:4(S:0)|gpu:a100:3(IDX:0-2)\n", "")
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-2=? gpu3=idle"]
+    assert _placement(state) == ["WARNING: Slurm accelerators: 3 GPUs in use show ? where allocation details are unavailable."]
+
+
+def test_mig_slices_follow_the_whole_gpus_with_their_users_or_percent(tmp_path):
+    from qtop_py.schedulers.gpu import node_devices, node_slices, slice_jobs
+
+    state = slurm_state(
+        tmp_path,
+        "node1|acc|mix|8|gpu:a100:2(S:0),gpu:a100_3g.20gb:4(S:0)|gpu:a100:1(IDX:0),gpu:a100_3g.20gb:2(IDX:2-3)\n",
+        "JobId=101\n Nodes=node1 GRES=gpu:a100:1(IDX:0),gpu:a100_3g.20gb:1(IDX:2)\nJobId=102\n Nodes=node1 GRES=gpu:a100_3g.20gb:1(IDX:3)\n",
+    )
+    (node,) = state["nodes"]
+    assert (node_devices(node, "gpu"), node_slices(node, "gpu")) == ([0, 1], [2, 3, 4, 5])
+    assert [slice_jobs(node, "gpu", index) for index in (2, 3, 4)] == [["101"], ["102"], []]
+    assert node_slices({"slurm_gpu_configured": parse_accelerator_gres("gpu:a100_3g.20gb:2(IDX:6-7)")}, "gpu") == [6, 7]
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0=101 gpu1=idle mig2=101 mig3=102"]  # held slices only
+
+
+def test_matrix_shows_mig_slices_after_whole_gpus(tmp_path):
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    traces = {
+        "squeue.txt": "101|alice|R|acc|2|node[1-2]\n",
+        "sinfo.txt": "node1|acc|mix|8|gpu:a100:2(S:0),gpu:a100_3g.20gb:2(S:0)|gpu:a100:1(IDX:0),gpu:a100_3g.20gb:1(IDX:2)\n"
+        "node2|acc|mix|8|gpu:a100_3g.20gb:3(S:0)|gpu:a100_3g.20gb:1(IDX:0)\n",
+        "scontrol.txt": "JobId=101\n Nodes=node1 CPU_IDs=0 GRES=gpu:a100:1(IDX:0),gpu:a100_3g.20gb:1(IDX:2)\n Nodes=node2 CPU_IDs=0 GRES=gpu:a100_3g.20gb:1(IDX:0)\n",
+    }
+    (tmp_path / "in").mkdir()
+    for name, text in traces.items():
+        (tmp_path / "in" / name).write_text(text)
+    root = Path(__file__).resolve().parents[2]
+    command = [sys.executable, "-m", "qtop_py.qtop", "-b", "slurm", "-s", str(tmp_path / "in"), "-c", "OFF", "-T", "-o", "savepath=%s" % tmp_path]
+    lines = subprocess.run(command, cwd=str(root), stdout=subprocess.PIPE, universal_newlines=True, check=True).stdout.splitlines()
+    assert [line for line in lines if "=Gpu" in line] == ["00=Gpu0", "_%=Gpu1", "0%=Gpu2", "%#=Gpu3"]
+
+
+def test_unreadable_gres_used_names_a_node_and_the_next_step(tmp_path):
+    state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:a100:4(S:0)|gpu:a100:4(IDX:0-2)\n", "JobId=101\n Nodes=node1 GRES=gpu:a100:2(IDX:0-1)\n")
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-1=101 gpu2-3=?"]
+    (line,) = [line for line in _placement(state) if "unreadable" in line]
+    assert line.startswith("WARNING: Slurm accelerators: GresUsed of 1 node unreadable, e.g. node1: gpu:a100:4(IDX:0-2);")
+    assert "sinfo -N -n node1 -O NodeList,Gres,GresUsed" in line and "qtop issue" in line
+
+
+SCONTROL_ONLY = (
+    "JobId=101\n Nodes=node1 CPU_IDs=0-1 GRES=gpu:a100:2(IDX:0-1)\n"
+    "JobId=102\n Nodes=node1 CPU_IDs=2 GRES=gpu:a100:1(IDX:2)\n"
+    "JobId=103 JobName=late\n   UserId=carol(1003) GroupId=carol(1003)\n   JobState=RUNNING Reason=None\n"
+    "   Partition=acc AllocNode:Sid=login:1\n   ReqNodeList=(null) ExcNodeList=(null)\n   NodeList=node1\n"
+    "   NumNodes=1 NumCPUs=1 NumTasks=1\n     Nodes=node1 CPU_IDs=3 Mem=1024 GRES=gpu:a100:1(IDX:3)\n"
+    "JobId=104 JobName=cpu_only\n   UserId=dave(1004)\n   JobState=RUNNING\n   Partition=acc\n   NodeList=node1\n   NumCPUs=1\n"
+    "     Nodes=node1 CPU_IDs=4 Mem=1024 GRES=\n"
+)
+
+
+def test_running_gpu_jobs_missing_from_squeue_are_listed_from_scontrol(tmp_path):
+    state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:a100:4(S:0)|gpu:a100:4(IDX:0-3)\n", SCONTROL_ONLY)
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-1=101 gpu2=102 gpu3=103"]
+    late = {job["id"]: job for job in state["jobs"]}["103"]
+    assert (late["user"], late["state"], late["queue"]) == ("carol", "R", "acc")
+    assert "104" not in {job["id"] for job in state["jobs"]}  # no accelerators: squeue's view stands
+    assert state["slurm_diagnostics"] == {"jobs_from_scontrol": 1}
+    snapshot = SimpleNamespace(_diagnostics={"slurm_diagnostics": state["slurm_diagnostics"]})
+    (note,) = SlurmBatchSystem.display_messages("snapshot", snapshot, [], {})
+    assert note.startswith("INFO: Slurm: 1 running job holding accelerators missing from squeue")
+    assert _placement(state) == []  # every GPU in use now has its job
+
+
+def test_incomplete_scontrol_blocks_and_finished_jobs_are_not_listed(tmp_path):
+    details = SCONTROL_ONLY.replace("JobState=RUNNING Reason", "JobState=COMPLETED Reason")
+    state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:a100:4(S:0)|gpu:a100:4(IDX:0-3)\n", details)
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-1=101 gpu2=102 gpu3=?"]
+    assert "slurm_diagnostics" not in state

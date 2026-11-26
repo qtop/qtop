@@ -1,5 +1,5 @@
-# Copyright (c) 2026 qtop contributors
-# SPDX-License-Identifier: MIT
+## Copyright (c) 2026 qtop contributors
+## SPDX-License-Identifier: MIT
 from collections import Counter
 from itertools import product
 from pathlib import Path
