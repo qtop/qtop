@@ -36,6 +36,7 @@ package schema
         jobs_with_missing_nodes?: int & >=0
         jobs_with_invalid_nodelists?: int & >=0
         all_partitions?: int & >=0 & <=1
+        jobs_from_scontrol?: int & >=0
     }
     oar_diagnostics?: {
         missing_resources?: int & >=0

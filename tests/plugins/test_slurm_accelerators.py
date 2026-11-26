@@ -315,6 +315,7 @@ def test_mig_slices_follow_the_whole_gpus_with_their_users_or_percent(tmp_path):
     assert (node_devices(node, "gpu"), node_slices(node, "gpu")) == ([0, 1], [2, 3, 4, 5])
     assert [slice_jobs(node, "gpu", index) for index in (2, 3, 4)] == [["101"], ["102"], []]
     assert node_slices({"slurm_gpu_configured": parse_accelerator_gres("gpu:a100_3g.20gb:2(IDX:6-7)")}, "gpu") == [6, 7]
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0=101 gpu1=idle mig2=101 mig3=102"]  # held slices only
 
 
 def test_matrix_shows_mig_slices_after_whole_gpus(tmp_path):
@@ -335,3 +336,42 @@ def test_matrix_shows_mig_slices_after_whole_gpus(tmp_path):
     command = [sys.executable, "-m", "qtop_py.qtop", "-b", "slurm", "-s", str(tmp_path / "in"), "-c", "OFF", "-T", "-o", "savepath=%s" % tmp_path]
     lines = subprocess.run(command, cwd=str(root), stdout=subprocess.PIPE, universal_newlines=True, check=True).stdout.splitlines()
     assert [line for line in lines if "=Gpu" in line] == ["00=Gpu0", "_%=Gpu1", "0%=Gpu2", "%#=Gpu3"]
+
+
+def test_unreadable_gres_used_names_a_node_and_the_next_step(tmp_path):
+    state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:a100:4(S:0)|gpu:a100:4(IDX:0-2)\n", "JobId=101\n Nodes=node1 GRES=gpu:a100:2(IDX:0-1)\n")
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-1=101 gpu2-3=?"]
+    (line,) = [line for line in _placement(state) if "unreadable" in line]
+    assert line.startswith("WARNING: Slurm accelerators: GresUsed of 1 node unreadable, e.g. node1: gpu:a100:4(IDX:0-2);")
+    assert "sinfo -N -n node1 -O NodeList,Gres,GresUsed" in line and "qtop issue" in line
+
+
+SCONTROL_ONLY = (
+    "JobId=101\n Nodes=node1 CPU_IDs=0-1 GRES=gpu:a100:2(IDX:0-1)\n"
+    "JobId=102\n Nodes=node1 CPU_IDs=2 GRES=gpu:a100:1(IDX:2)\n"
+    "JobId=103 JobName=late\n   UserId=carol(1003) GroupId=carol(1003)\n   JobState=RUNNING Reason=None\n"
+    "   Partition=acc AllocNode:Sid=login:1\n   ReqNodeList=(null) ExcNodeList=(null)\n   NodeList=node1\n"
+    "   NumNodes=1 NumCPUs=1 NumTasks=1\n     Nodes=node1 CPU_IDs=3 Mem=1024 GRES=gpu:a100:1(IDX:3)\n"
+    "JobId=104 JobName=cpu_only\n   UserId=dave(1004)\n   JobState=RUNNING\n   Partition=acc\n   NodeList=node1\n   NumCPUs=1\n"
+    "     Nodes=node1 CPU_IDs=4 Mem=1024 GRES=\n"
+)
+
+
+def test_running_gpu_jobs_missing_from_squeue_are_listed_from_scontrol(tmp_path):
+    state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:a100:4(S:0)|gpu:a100:4(IDX:0-3)\n", SCONTROL_ONLY)
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-1=101 gpu2=102 gpu3=103"]
+    late = {job["id"]: job for job in state["jobs"]}["103"]
+    assert (late["user"], late["state"], late["queue"]) == ("carol", "R", "acc")
+    assert "104" not in {job["id"] for job in state["jobs"]}  # no accelerators: squeue's view stands
+    assert state["slurm_diagnostics"] == {"jobs_from_scontrol": 1}
+    snapshot = SimpleNamespace(_diagnostics={"slurm_diagnostics": state["slurm_diagnostics"]})
+    (note,) = SlurmBatchSystem.display_messages("snapshot", snapshot, [], {})
+    assert note.startswith("INFO: Slurm: 1 running job holding accelerators missing from squeue")
+    assert _placement(state) == []  # every GPU in use now has its job
+
+
+def test_incomplete_scontrol_blocks_and_finished_jobs_are_not_listed(tmp_path):
+    details = SCONTROL_ONLY.replace("JobState=RUNNING Reason", "JobState=COMPLETED Reason")
+    state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:a100:4(S:0)|gpu:a100:4(IDX:0-3)\n", details)
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-1=101 gpu2=102 gpu3=?"]
+    assert "slurm_diagnostics" not in state

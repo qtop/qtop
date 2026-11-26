@@ -681,8 +681,9 @@ assignments. Valid jobs
 and queues remain visible; unavailable node capacity is not invented. JSON and
 support replay preserve optional `slurm_diagnostics` counters:
 `rejected_squeue_rows`, `rejected_sinfo_rows`, `jobs_with_missing_nodes`, and
-`jobs_with_invalid_nodelists`, and `all_partitions: 1` when live collection used
-`--all` (replayed traces do not say). Clean snapshots collected without `--all` omit this field. Row counts refer
+`jobs_with_invalid_nodelists`, `jobs_from_scontrol` (running jobs with accelerators
+listed from `scontrol` because `squeue` missed them), and `all_partitions: 1` when live
+collection used `--all` (replayed traces do not say). Clean snapshots collected without `--all` omit this field. Row counts refer
 to input records, not an estimate of how many jobs or nodes those records hid.
 
 Slurm accepts legacy six-column and resource-aware nine-column `squeue`
@@ -1422,6 +1423,21 @@ jobs absent from `squeue` or those details, a `WARNING:` to run `qtop --all`, wh
 shows hidden partitions, unless the snapshot was collected with it. Otherwise an `INFO:`
 says that Slurm's `PrivateData=jobs` hides other users' jobs, and that jobs may start or
 end between the commands, which run at the same time but return at different moments.
+
+Jobs that start after `squeue` answered are in the later `scontrol --details show jobs`
+answer only. qtop lists such a job from those details, so its GPUs, TPUs and NPUs show
+its user instead of `?`, when all of these hold: it holds accelerators, its `JobState`
+is active (running, completing, suspended), and its block names `UserId`, `JobState`,
+`Partition`, `NumCPUs` and `NodeList`. It then counts like any job, in the matrix, the
+accounts and the totals, and an `INFO:` note gives how many were added. Jobs without
+accelerators keep `squeue`'s view, and a `squeue` command customized to filter users or
+partitions is not broadened beyond the jobs that hold accelerators.
+
+MIG slices held by a job are listed in the `accelerator_map` lines as `mig4-5=103`
+after the node's whole GPUs; unheld slices appear only in the matrix, as `%`.
+When `sinfo` reports a node's `Gres` or `GresUsed` that qtop cannot read, such as a
+GPU count that disagrees with its indices, a `WARNING:` names one such node, its value
+and the `sinfo` command to check it with; qtop.log lists every node.
 Nodes with fewer devices are padded with `non_existent_node_symbol`, as for cores.
 A device shared by several jobs shows the first job's user. `rem_empty_corelines`
 drops unused device lines as it drops unused CPU lines.

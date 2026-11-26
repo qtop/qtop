@@ -208,7 +208,8 @@ def _runs(devices: Sequence[int], statuses: Sequence[str]) -> List[str]:
 def accelerator_map_lines(nodes: Sequence[Mapping[str, Any]], kinds: Sequence[str] = ACCELERATOR_KINDS) -> List[str]:
     """One line per node with accelerators: each GPU, TPU and NPU with its jobs, e.g. "n1: gpu0-1=101 gpu2-7=idle".
 
-    Any number of devices; consecutive devices of the same status share one label. kinds limits the
+    Any number of devices; consecutive devices of the same status share one label. MIG slices that a
+    Slurm job holds follow as "mig4-5=103"; the matrix shows the others as %. kinds limits the
     kinds shown (matrix_accelerators).
     """
     lines = []
@@ -217,6 +218,9 @@ def accelerator_map_lines(nodes: Sequence[Mapping[str, Any]], kinds: Sequence[st
         for kind in (kind for kind in ACCELERATOR_KINDS if kind in kinds):
             devices = node_devices(node, kind)
             labels.extend(kind + label for label in _runs(devices, [device_status(node, kind, index) for index in devices]))
+            held = [(index, "/".join(slice_jobs(node, kind, index))) for index in node_slices(node, kind)]
+            held = [(index, jobs) for index, jobs in held if jobs]
+            labels.extend("mig" + label for label in _runs([index for index, _ in held], [jobs for _, jobs in held]))
         if labels:
             lines.append("%s: %s" % (node["domainname"], " ".join(labels)))
     return lines

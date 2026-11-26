@@ -444,7 +444,11 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         if section == "placement":
             kinds = config.get("matrix_accelerators", ACCELERATOR_KINDS)
             all_partitions = bool(getattr(snapshot, "_diagnostics", {}).get("slurm_diagnostics", {}).get("all_partitions"))
-            return SlurmBatchSystem._placement_messages(nodes) + SlurmBatchSystem._unseen_holder_messages(nodes, kinds, all_partitions)
+            return (
+                SlurmBatchSystem._placement_messages(nodes)
+                + SlurmBatchSystem._unreadable_gres_messages(nodes)
+                + SlurmBatchSystem._unseen_holder_messages(nodes, kinds, all_partitions)
+            )
         if section == "accelerators":
             return SlurmBatchSystem._accelerator_messages(nodes, config.get("matrix_accelerators", ACCELERATOR_KINDS))
         if section == "resources":
@@ -521,6 +525,11 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             lines.append("INFO: Jobs on missing nodes: those nodes may be in group-unavailable partitions, even with --all.")
         elif diagnostics.get("jobs_with_missing_nodes"):
             lines.append("INFO: Jobs on missing nodes: those nodes may be in hidden or group-unavailable partitions; try qtop --all, if not already used.")
+        if diagnostics.get("jobs_from_scontrol"):
+            lines.append(
+                "INFO: Slurm: %s running job%s holding accelerators missing from squeue, which answered before they started;"
+                " qtop lists them from the scontrol details." % (diagnostics["jobs_from_scontrol"], "" if diagnostics["jobs_from_scontrol"] == 1 else "s")
+            )
         if diagnostics.get("jobs_with_invalid_nodelists"):
             lines.append("INFO: Invalid node lists: a starting or completing job may have no nodes yet; otherwise check that squeue does not cut the NodeList field.")
         if diagnostics.get("rejected_squeue_rows") or diagnostics.get("rejected_sinfo_rows"):
@@ -551,6 +560,24 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in nodes)
         if omitted:
             lines.append("WARNING: Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
+        return lines
+
+    @staticmethod
+    def _unreadable_gres_messages(nodes: "List[Node]") -> List[str]:
+        """Name the nodes whose sinfo Gres/GresUsed qtop could not read, what that hides, and what to check."""
+        lines = []
+        for raw, parsed, field, effect in (
+            ("slurm_gres", "slurm_gpu_configured", "Gres", "their accelerators are not shown"),
+            ("slurm_gres_used", "slurm_gpu_used", "GresUsed", "their accelerators without a job show ?"),
+        ):
+            unread = [node for node in nodes if parsed not in node and any(kind + ":" in str(node.get(raw, "")) for kind in ACCELERATOR_KINDS)]
+            if unread:
+                first = unread[0]
+                lines.append(
+                    "WARNING: Slurm accelerators: %s of %s node%s unreadable, e.g. %s: %s; %s. Check `sinfo -N -n %s -O NodeList,Gres,GresUsed`;"
+                    " if Slurm reports it so, open a qtop issue with that line and qtop.log."
+                    % (field, len(unread), "s" if len(unread) > 1 else "", first["domainname"], first.get(raw), effect, first["domainname"])
+                )
         return lines
 
     @staticmethod
@@ -716,6 +743,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             count = getattr(self.slurm_stat_maker, "rejected_%s_rows" % source, 0)
             if count:
                 diagnostics["rejected_%s_rows" % source] = count
+        if getattr(self, "jobs_from_scontrol", None):
+            diagnostics["jobs_from_scontrol"] = len(self.jobs_from_scontrol)
         if getattr(self.options, "ALL_PARTITIONS", False) and not getattr(self.options, "SOURCEDIR", None):
             diagnostics["all_partitions"] = 1  # the notes then stop suggesting --all
         if diagnostics:
@@ -901,7 +930,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     try:
                         node[parsed] = parse_accelerator_gres(node[raw])
                     except ValueError as error:
-                        logger.warning("Ignoring invalid Slurm GPU metadata: %s", error)
+                        field = "Gres" if raw == "slurm_gres" else "GresUsed"
+                        logger.warning("Ignoring unreadable Slurm %s of %s (%r): %s", field, node.get("domainname", "?"), node[raw], error)
         if not self.scontrol_file:
             return
         allocations, invalid = self._read_gpu_allocations()
@@ -1028,8 +1058,56 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
 
     def _get_jobs(self) -> List[Dict[str, Any]]:
         if not hasattr(self, "_jobs"):
-            self._jobs = self.slurm_stat_maker.extract_squeue(self.squeue_file)
+            jobs = self.slurm_stat_maker.extract_squeue(self.squeue_file)
+            self.jobs_from_scontrol = self._scontrol_only_jobs({job["JobId"] for job in jobs}) if self.scontrol_file else []
+            self._jobs = jobs + self.jobs_from_scontrol
         return self._jobs
+
+    def _scontrol_only_jobs(self, listed: Set[str]) -> List[Dict[str, Any]]:
+        """Running jobs that hold accelerators in the scontrol details but are absent from squeue, as squeue rows.
+
+        The commands run at the same time, so a job that starts after squeue answered is in scontrol's
+        later answer only; without it, its GPUs show ?. A job enters only with its user, state, partition,
+        CPU count and node list, and when it is active and holds a GPU, TPU or NPU; others stay out.
+        """
+        blocks: List[Tuple[Optional[str], Dict[str, str], bool]] = []
+        try:
+            with open_input(self.scontrol_file, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
+                for line in stream:
+                    if re.match(r"\s*JobId=", line):
+                        blocks.append((self._allocation_job_id(line), {}, False))
+                    elif blocks:
+                        job_id, fields, holds = blocks[-1]
+                        fields.update((key, value) for key, value in re.findall(r"(?:^|\s)(UserId|JobState|Partition|NumCPUs|NodeList)=(\S+)", line) if key not in fields)
+                        gres = re.search(r"(?:^|\s)GRES=(\S+)", line) if re.match(r"\s*Nodes=", line) else None
+                        if gres and any(entry.split(":", 1)[0] in ACCELERATOR_KINDS for entry in gres.group(1).split(",")):
+                            blocks[-1] = (job_id, fields, True)
+        except (OSError, UnicodeError):
+            return []  # _read_gpu_allocations warns about the same file
+        jobs = []
+        for job_id, fields, holds in blocks:
+            if job_id is None or job_id in listed or not holds or len(fields) < 5:
+                continue
+            state = self.slurm_stat_maker._map_job_state(fields["JobState"])
+            user = fields["UserId"].split("(", 1)[0]
+            if state not in self.ACTIVE_STATES or not user or "," in fields["Partition"]:
+                continue
+            job = {
+                "JobId": job_id,
+                "UnixAccount": user,
+                "S": state,
+                "raw_state": fields["JobState"],
+                "Queue": fields["Partition"],
+                "slurm_partitions": [fields["Partition"]],
+                "accounting_state": slurm_accounting_state(state),
+                "CPUs": max(1, self.slurm_stat_maker._safe_int(fields["NumCPUs"], default=1)),
+                "Nodes": fields["NodeList"],
+            }
+            if "_" in job_id or "+" in job_id:
+                job.update(self.slurm_stat_maker.identity_fields(job_id))
+            jobs.append(job)
+            listed.add(job_id)
+        return jobs
 
     def _get_nodes(self) -> List[Dict[str, Any]]:
         if not hasattr(self, "_nodes"):
