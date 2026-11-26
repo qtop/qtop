@@ -515,8 +515,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         if any(diagnostics.get(key) for key in INCOMPLETE_SNAPSHOT_COUNTERS):
             lines.append(
                 "WARNING: Slurm snapshot incomplete: %s rejected job rows; %s rejected node rows; "
-                "%s active jobs reference missing nodes; %s active jobs have invalid node lists."
-                % tuple(diagnostics.get(key, 0) for key in INCOMPLETE_SNAPSHOT_COUNTERS)
+                "%s active jobs reference missing nodes; %s active jobs have invalid node lists." % tuple(diagnostics.get(key, 0) for key in INCOMPLETE_SNAPSHOT_COUNTERS)
             )
         if diagnostics.get("jobs_with_missing_nodes") and diagnostics.get("all_partitions"):
             lines.append("INFO: Jobs on missing nodes: those nodes may be in group-unavailable partitions, even with --all.")
