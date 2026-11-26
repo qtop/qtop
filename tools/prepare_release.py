@@ -36,7 +36,7 @@ def release_plan(root, VERSION):
     intro, pending = changelog.split("## Unreleased\n", 1)
     notes, history = pending.split("\n## ", 1)
     notes = notes.strip()
-    changelog = intro + "## Unreleased\n\n## " + VERSION + "\n\n" + (notes + "\n" if notes else "")
+    changelog = intro + "## " + VERSION + "\n\n" + (notes + "\n" if notes else "")
     changelog += "- Release: update version metadata to " + VERSION + "\n\n## " + history
     old_recipe = "docs/qtop-%s-GCCcore-14.3.0.eb" % old
     new_recipe = old_recipe.replace(old, VERSION)

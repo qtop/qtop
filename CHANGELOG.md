@@ -5,6 +5,8 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261124
 
+- Bugfix: tools/prepare_release.py writes no ## Unreleased heading, as the changelog keeps none
+- Tests: CHANGELOG top heading, manpage date and EasyBuild recipe must agree with __version__
 - Release: update version metadata to 0.9.20261124
 
 ## 0.9.20261123
