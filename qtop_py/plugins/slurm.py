@@ -464,31 +464,45 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         """
         if config.get("experimental_nvlink_blocks") is not True:
             return []
-        from qtop_py.schedulers.gpu import device_status, node_devices
+        blocks, job_blocks = SlurmBatchSystem._gather_blocks(nodes)
+        kinds = [kind for kind in ACCELERATOR_KINDS if kind in config.get("matrix_accelerators", ACCELERATOR_KINDS)]
+        lines = ["INFO: %s: %s" % (name, SlurmBatchSystem._block_summary(members, job_blocks, kinds)) for name, members in blocks.items()]
+        return ["INFO: Topology blocks (Slurm topology/block, e.g. NVLink domains):"] + lines if lines else []
 
+    @staticmethod
+    def _node_jobs(node: Mapping[str, Any]) -> Set[str]:
+        """The jobs on a node: those on its CPUs and those Slurm lists for it."""
+        return set(node["core_job_map"].values()) | set(node.get("slurm_job_ids", ()))
+
+    @staticmethod
+    def _gather_blocks(nodes: "List[Node]") -> Tuple[Dict[str, List[Mapping[str, Any]]], Dict[str, Set[str]]]:
+        """Return the nodes of each block, in node order, and the blocks each job runs in."""
         blocks: Dict[str, List[Mapping[str, Any]]] = OrderedDict()
         job_blocks: Dict[str, Set[str]] = {}
         for node in nodes:
             if "slurm_block" not in node:
                 continue
             blocks.setdefault(node["slurm_block"], []).append(node)
-            for job_id in set(node["core_job_map"].values()) | set(node.get("slurm_job_ids", ())):
+            for job_id in SlurmBatchSystem._node_jobs(node):
                 job_blocks.setdefault(job_id, set()).add(node["slurm_block"])
-        lines = []
-        for name, members in blocks.items():
-            jobs = [set(member["core_job_map"].values()) | set(member.get("slurm_job_ids", ())) for member in members]
-            free = sum(1 for member, held in zip(members, jobs) if str(member["state"][0]) == "-" and not held and not SLURM_EXTENSION.node_busy(member))
-            busy = sum(1 for held in jobs if held)
-            parts = ["%s nodes (%s free, %s busy)" % (len(members), free, busy)]
-            for kind in (kind for kind in ACCELERATOR_KINDS if kind in config.get("matrix_accelerators", ACCELERATOR_KINDS)):
-                statuses = [device_status(member, kind, index) for member in members for index in node_devices(member, kind)]
-                if statuses:
-                    parts.append("%s %s/%s idle" % (kind, statuses.count("idle"), len(statuses)))
-            spanning = sorted({job_id for held in jobs for job_id in held if len(job_blocks[job_id]) > 1}, key=lambda job_id: (len(job_id), job_id))
-            if spanning:
-                parts.append("jobs across blocks: " + " ".join(spanning))
-            lines.append("INFO: %s: %s" % (name, ", ".join(parts)))
-        return ["INFO: Topology blocks (Slurm topology/block, e.g. NVLink domains):"] + lines if lines else []
+        return blocks, job_blocks
+
+    @staticmethod
+    def _block_summary(members: List[Mapping[str, Any]], job_blocks: Mapping[str, Set[str]], kinds: Sequence[str]) -> str:
+        """Describe one block: nodes free/busy, idle/total devices of each kind, and jobs that also run in another block."""
+        from qtop_py.schedulers.gpu import device_status, node_devices
+
+        jobs = [SlurmBatchSystem._node_jobs(member) for member in members]
+        free = sum(1 for member, held in zip(members, jobs) if str(member["state"][0]) == "-" and not held and not SLURM_EXTENSION.node_busy(member))
+        parts = ["%s nodes (%s free, %s busy)" % (len(members), free, sum(1 for held in jobs if held))]
+        for kind in kinds:
+            statuses = [device_status(member, kind, index) for member in members for index in node_devices(member, kind)]
+            if statuses:
+                parts.append("%s %s/%s idle" % (kind, statuses.count("idle"), len(statuses)))
+        spanning = sorted({job_id for held in jobs for job_id in held if len(job_blocks[job_id]) > 1}, key=lambda job_id: (len(job_id), job_id))
+        if spanning:
+            parts.append("jobs across blocks: " + " ".join(spanning))
+        return ", ".join(parts)
 
     @staticmethod
     def _snapshot_messages(snapshot: object) -> List[str]:
