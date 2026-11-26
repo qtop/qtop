@@ -1412,6 +1412,12 @@ Without `-T` transposition, the device lines (`=Gpu0`, `=Gpu1`, ..., `=Tpu0`,
 `gpu_map` elsewhere. `_` is an idle device; a gray `?` means Slurm
 reports the device in use (or reports no usage, as for a down node) but not which
 job holds it, as with `--slurm-summary`, which collects no per-job indices.
+A MIG slice in use leaves the node's other whole GPUs `_` when they are idle.
+Where Slurm lists devices in use but qtop cannot name their jobs, a note counts them:
+a `WARNING:` for nodes without `scontrol --details show jobs` allocation details, and
+an `INFO:` for jobs absent from `squeue` or those details. Such jobs may be in hidden
+partitions (`--all`), hidden by Slurm's `PrivateData=jobs`, or may have started or
+ended between the commands, which run at the same time but return at different moments.
 Nodes with fewer devices are padded with `non_existent_node_symbol`, as for cores.
 A device shared by several jobs shows the first job's user. `rem_empty_corelines`
 drops unused device lines as it drops unused CPU lines.

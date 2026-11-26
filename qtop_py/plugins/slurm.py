@@ -441,7 +441,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         if section == "accounting":
             return SlurmBatchSystem._accounting_messages(snapshot)
         if section == "placement":
-            return SlurmBatchSystem._placement_messages(nodes)
+            kinds = config.get("matrix_accelerators", ACCELERATOR_KINDS)
+            return SlurmBatchSystem._placement_messages(nodes) + SlurmBatchSystem._unseen_holder_messages(nodes, kinds)
         if section == "accelerators":
             return SlurmBatchSystem._accelerator_messages(nodes, config.get("matrix_accelerators", ACCELERATOR_KINDS))
         if section == "resources":
@@ -547,6 +548,33 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in nodes)
         if omitted:
             lines.append("WARNING: Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
+        return lines
+
+    @staticmethod
+    def _unseen_holder_messages(nodes: "List[Node]", kinds: Sequence[str] = ACCELERATOR_KINDS) -> List[str]:
+        """Count the accelerators Slurm lists in use whose job qtop cannot name (?), and say why that may be."""
+        from qtop_py.schedulers.gpu import held_by_unseen_job, node_devices
+
+        without_details: Dict[str, int] = {}  # kind -> devices on nodes without scontrol allocation details
+        unlisted: Dict[str, int] = {}  # kind -> devices held by jobs absent from squeue or the scontrol details
+        for node in nodes:
+            counts = without_details if node.get("cpu_allocation_source") == "estimated" else unlisted
+            for kind in kinds:
+                held = sum(1 for index in node_devices(node, kind) if held_by_unseen_job(node, kind, index))
+                if held:
+                    counts[kind] = counts.get(kind, 0) + held
+
+        def described(counts: Mapping[str, int]) -> str:
+            return ", ".join("%s %s%s" % (counts[kind], kind.upper(), "s" if counts[kind] > 1 else "") for kind in ACCELERATOR_KINDS if kind in counts)
+
+        lines = []
+        if without_details:
+            lines.append("WARNING: Slurm accelerators: %s in use show ? where allocation details are unavailable." % described(without_details))
+        if unlisted:
+            lines.append(
+                "INFO: Slurm accelerators: %s in use by jobs qtop does not see show ?: try --all for hidden partitions;"
+                " PrivateData=jobs hides other users' jobs; jobs may start or end between the commands." % described(unlisted)
+            )
         return lines
 
     @staticmethod

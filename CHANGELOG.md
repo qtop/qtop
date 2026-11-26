@@ -6,6 +6,8 @@ Notable changes by version, newest first. See the
 ## 0.9.20261124
 
 - Bugfix: tools/prepare_release.py writes no ## Unreleased heading, as the changelog keeps none
+- Bugfix: a MIG slice in use no longer turns the idle whole GPUs of its node into a gray ?
+- Feature: Slurm notes count the GPUs/TPUs/NPUs in use shown ?, and say why their jobs are unknown
 - Tests: CHANGELOG top heading, manpage date and EasyBuild recipe must agree with __version__
 - Release: update version metadata to 0.9.20261124
 

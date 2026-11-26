@@ -252,3 +252,35 @@ def test_untransposed_gpu_lines_sit_between_dashed_rules(tmp_path):
     assert [line.rsplit("=", 1)[1] for line in lines[start + 1 : start + 5]] == ["Gpu0", "Gpu1", "Gpu2", "Gpu3"]
     assert lines[start + 5] == "--" and lines[start + 6].endswith("=Cpu0")
     assert "--" not in _qtop(tmp_path, "-T", "-o", "matrix_accelerators=none")  # no devices shown, no rules
+
+
+def test_a_mig_slice_in_use_leaves_idle_whole_gpus_idle(tmp_path):
+    state = slurm_state(
+        tmp_path,
+        "node1|acc|mix|8|gpu:a100:4(S:0),gpu:a100_3g.20gb:2(S:0)|gpu:a100:3(IDX:0-2),gpu:a100_3g.20gb:1(IDX:4)\n",
+        "JobId=101\n Nodes=node1 GRES=gpu:a100:2(IDX:0-1)\nJobId=102\n Nodes=node1 GRES=gpu:a100:1(IDX:2)\n",
+    )
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-1=101 gpu2=102 gpu3=idle"]
+
+
+def _placement(state, config=None):
+    return [line for line in SlurmBatchSystem.display_messages("placement", None, state["nodes"], config or {}) if "accelerators" in line]
+
+
+def test_gpus_held_by_unseen_jobs_are_counted_with_the_likely_causes(tmp_path):
+    sinfo = "node1|acc|mix|8|gpu:a100:4(S:0)|gpu:a100:4(IDX:0-3)\n"
+    details = "JobId=101\n Nodes=node1 CPU_IDs=0-1 GRES=gpu:a100:2(IDX:0-1)\nJobId=102\n Nodes=node1 CPU_IDs=2 GRES=gpu:a100:1(IDX:2)\n"
+    state = slurm_state(tmp_path, sinfo, details)
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-1=101 gpu2=102 gpu3=?"]
+    (line,) = _placement(state)
+    assert line.startswith("INFO: Slurm accelerators: 1 GPU in use by jobs qtop does not see show ?: try --all")
+    assert "PrivateData=jobs" in line
+    assert _placement(state, {"matrix_accelerators": ()}) == []  # hidden kinds, no note
+    seen = slurm_state(tmp_path, sinfo.replace("4(IDX:0-3)", "3(IDX:0-2)"), details)
+    assert _placement(seen) == []  # every GPU in use has its job: nothing to explain
+
+
+def test_gpus_in_use_without_allocation_details_are_counted(tmp_path):
+    state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:a100:4(S:0)|gpu:a100:3(IDX:0-2)\n", "")
+    assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0-2=? gpu3=idle"]
+    assert _placement(state) == ["WARNING: Slurm accelerators: 3 GPUs in use show ? where allocation details are unavailable."]
