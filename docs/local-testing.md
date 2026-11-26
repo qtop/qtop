@@ -16,7 +16,7 @@ sudo apt-get install -y git make python3-venv golang-go nodejs
 ```
 
 Go must be 1.26 or newer, or have Go's automatic toolchain download enabled.
-Install [uv](https://docs.astral.sh/uv/) (or `pipx install nox`). Use a
+Install [uv](https://docs.astral.sh/uv/) (or `pipx install nox==2026.10.20`). Use a
 Linux-native clone inside WSL, not the Windows checkout under `/mnt/c`:
 Windows mounts lack the POSIX permissions and timing the suite checks.
 
@@ -25,9 +25,12 @@ Windows mounts lack the POSIX permissions and timing the suite checks.
 From the checkout:
 
 ```sh
-uvx nox
-uvx nox -- test-fast
+uvx nox@2026.10.20
+uvx nox@2026.10.20 -- test-fast
 ```
+
+nox is pinned in these commands and, as a minimum, by `nox.needs_version` in
+[noxfile.py](../noxfile.py); Dependabot does not update them, so bump both together.
 
 [noxfile.py](../noxfile.py) creates a Python 3.12 environment (uv fetches
 Python 3.12 if it is missing), installs `requirements-ci.txt` and runs the

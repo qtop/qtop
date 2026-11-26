@@ -2,13 +2,15 @@
 ## SPDX-License-Identifier: MIT
 """Run qtop's Make gates in a managed Python 3.12 environment with the pinned CI requirements.
 
-`uvx nox` runs make pre-pr schema-ci; `uvx nox -- test-fast` runs any Make targets, in one invocation.
+`uvx nox@2026.10.20` runs make pre-pr schema-ci; `uvx nox@2026.10.20 -- test-fast` runs any Make targets, in one invocation.
+nox is pinned here and in docs/local-testing.md, not in requirements-ci.txt, which it installs.
 """
 
 import os
 
 import nox
 
+nox.needs_version = ">=2026.10.20"  # the uvx nox@ pin of docs/local-testing.md; Dependabot does not update either
 nox.options.default_venv_backend = "uv|virtualenv"
 nox.options.reuse_venv = "yes"  # later runs re-check the pins in the same environment; -N rebuilds it
 nox.options.sessions = ["gates"]

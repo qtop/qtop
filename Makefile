@@ -21,7 +21,8 @@ GO ?= go
 BASE_SCHEMA ?= schema/cluster-state.cue
 PROPOSED_SCHEMA ?=
 SCHEMA_DEFINITION ?= \#ClusterState
-ZIZMOR ?= $(UVX) --quiet zizmor
+# The zizmor of OSPS_TOOLS; tests/test_ci_requirements.py keeps the two equal.
+ZIZMOR ?= $(UVX) --quiet zizmor@1.32.0
 ZIZMOR_FLAGS ?= -qq --offline --no-progress --color never --render-links never --show-audit-urls never
 # all: every backend the registry finds; or a comma-separated list such as pbs,slurm
 SAMPLE_GATE_SCHEDULERS ?= all

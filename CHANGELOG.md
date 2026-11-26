@@ -7,6 +7,7 @@ Notable changes by version, newest first. See the
 
 - Bugfix: tools/prepare_release.py writes no ## Unreleased heading, as the changelog keeps none
 - Bugfix: a MIG slice in use no longer turns the idle whole GPUs of its node into a gray ?
+- CI: nox and zizmor are pinned where they start: uvx nox@2026.10.20 (needs_version), zizmor@1.32.0
 - Feature: Slurm notes count the GPUs/TPUs/NPUs in use shown ?, and say why their jobs are unknown
 - Feature: MIG slices get matrix cells after the whole GPUs: the user of their job, or a gray %
 - Feature: GPUs held by unseen jobs warn to run qtop --all, unless slurm_diagnostics says it ran
