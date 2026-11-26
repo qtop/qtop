@@ -20,7 +20,7 @@ def test_release_preview_preserves_history_and_does_not_write():
     assert edits["CHANGELOG.md"].split("## " + __version__, 1)[1] == before.split("## " + __version__, 1)[1]
     assert '"2099-01-01" "qtop 0.9.20990101"' in edits["docs/qtop.1"]
     assert edits["docs/qtop-%s-GCCcore-14.3.0.eb" % __version__] is None
-    assert "## Unreleased" not in edits["CHANGELOG.md"]  # notes go under the release heading
+    assert not re.search(r"^## Unreleased$", edits["CHANGELOG.md"], re.M)  # notes go under the release heading
     assert edits["CHANGELOG.md"].split("\n## ", 2)[1].startswith("0.9.20990101\n")
 
 
