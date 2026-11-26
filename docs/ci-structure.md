@@ -269,7 +269,7 @@ remain covered by `tests/test_sample.py`. Live evidence remains open in ROADMAP.
 ## Coverage interpretation
 
 The shared coverage targets measure branches as well as statements. Runtime
-statement coverage has a 95% floor; branch coverage has a separate 91%
+statement coverage has a 95% floor; branch coverage has a separate 93%
 floor, so one metric cannot conceal a regression in the other. Coverage.py's
 `TOTAL` combines statements and branches; the gate compares their unrounded
 percentages separately. The JSON report

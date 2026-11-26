@@ -63,7 +63,7 @@ For the pinned Linux x86-64 Python 3.12 environment at revision `1134990`
 |---|---:|---|
 | `test-fast` | 664 parser/model/UI cases | No |
 | `test` or `ci` | 1,569: 1,565 parallel, then 4 web cases serially | No |
-| `coverage`, `coverage-xml` or `pre-pr` | Same 1,569 cases, once | 95% statements, 91% branches |
+| `coverage`, `coverage-xml` or `pre-pr` | Same 1,569 cases, once | 95% statements, 93% branches |
 | `property-test` | 23 cases, already included in the full suite | No |
 | `test-packaging` | 7 build-and-install cases that `test` and `coverage` skip; build jobs and nightly lanes run them | No |
 | `nightly-properties` | Same 23 cases with the extended profile | No |

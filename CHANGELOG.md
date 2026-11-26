@@ -7,6 +7,7 @@ Notable changes by version, newest first. See the
 
 - Bugfix: tools/prepare_release.py writes no ## Unreleased heading, as the changelog keeps none
 - Bugfix: a MIG slice in use no longer turns the idle whole GPUs of its node into a gray ?
+- CI: branch coverage floor rises from 91% to 93% (COVERAGE_BRANCH_MIN); 3.15.2 measures 93.04%
 - CI: nox and zizmor are pinned where they start: uvx nox@2026.10.20 (needs_version), zizmor@1.32.0
 - CI: the coverage job runs Python 3.15.2, like build.yml's newest lane (was 3.14.8)
 - CI: nox runs Python 3.12.3, as CI's modern-python lanes do; QTOP_NOX_PYTHON overrides it
