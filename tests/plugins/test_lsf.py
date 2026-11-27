@@ -6,12 +6,14 @@ import json
 from pathlib import Path
 
 import pytest
+from support import nodes_by_name, sample_backend
 
 from qtop_py.core_api import BackendOptions
 from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.lsf import HOST_STATES, LSFBatchSystem, parse_exec_host
 
 SAMPLE = Path(__file__).resolve().parent / "lsf_samples" / "basic"
+TRACES = {"bhosts_file": "bhosts.txt", "bqueues_file": "bqueues.txt", "bjobs_file": "bjobs.txt"}
 BHOSTS = "HOST_NAME STATUS JL/U MAX NJOBS RUN SSUSP USUSP RSV\n"
 BQUEUES = "QUEUE_NAME PRIO STATUS MAX JL/U JL/P JL/H NJOBS PEND RUN SUSP\n"
 BJOBS = "JOBID|JOBINDEX|STAT|USER|QUEUE|EXEC_HOST\n"
@@ -19,18 +21,7 @@ BJOBS = "JOBID|JOBINDEX|STAT|USER|QUEUE|EXEC_HOST\n"
 
 def backend(tmp_path=None, bhosts=None, bqueues=None, bjobs=None):
     """Return an LSF backend over the sample traces, with any given trace replaced."""
-    paths = {key: str(SAMPLE / name) for key, name in (("bhosts_file", "bhosts.txt"), ("bqueues_file", "bqueues.txt"), ("bjobs_file", "bjobs.txt"))}
-    for key, text in (("bhosts_file", bhosts), ("bqueues_file", bqueues), ("bjobs_file", bjobs)):
-        if text is not None:
-            path = tmp_path / key
-            path.write_text(text)
-            paths[key] = str(path)
-    return LSFBatchSystem(paths, {}, BackendOptions())
-
-
-def nodes_by_name(lsf):
-    job_ids, _users, _states, queues = lsf.get_jobs_info()
-    return {node["domainname"]: node for node in lsf.get_worker_nodes(job_ids, queues, None)}
+    return sample_backend(LSFBatchSystem, SAMPLE, TRACES, tmp_path, bhosts_file=bhosts, bqueues_file=bqueues, bjobs_file=bjobs)
 
 
 @pytest.mark.parametrize(

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import pytest
+from support import nodes_by_name, sample_backend
 
 from qtop_py import configuration
 from qtop_py.core_api import BackendOptions
@@ -13,22 +14,12 @@ from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.htcondor import JOB_STATES, HTCondorBatchSystem, slot_type
 
 SAMPLE = Path(__file__).resolve().parent / "htcondor_samples" / "basic"
+TRACES = {"status_json": "condor_status.json", "q_json": "condor_q.json"}
 
 
 def backend(tmp_path=None, status=None, jobs=None):
     """Return an HTCondor backend over the sample traces, with either trace replaced (JSON-encoded unless str)."""
-    paths = {"status_json": str(SAMPLE / "condor_status.json"), "q_json": str(SAMPLE / "condor_q.json")}
-    for key, value in (("status_json", status), ("q_json", jobs)):
-        if value is not None:
-            path = tmp_path / key
-            path.write_text(value if isinstance(value, str) else json.dumps(value))
-            paths[key] = str(path)
-    return HTCondorBatchSystem(paths, {}, BackendOptions())
-
-
-def nodes_by_name(condor):
-    job_ids, _users, _states, queues = condor.get_jobs_info()
-    return {node["domainname"]: node for node in condor.get_worker_nodes(job_ids, queues, None)}
+    return sample_backend(HTCondorBatchSystem, SAMPLE, TRACES, tmp_path, status_json=status, q_json=jobs)
 
 
 def test_sample_jobs_use_cluster_proc_ids_state_letters_and_groups():

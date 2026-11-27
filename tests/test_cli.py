@@ -118,15 +118,16 @@ NODES_101_116 = {
 
 
 @pytest.mark.parametrize("flags", [(), ("-m",), ("-T",), ("-T", "-o", "sorting={'user_sort':[],'reverse':False}")])
-def test_pbs_matrix_columns_follow_node_numbers_and_masking(tmp_path, flags):
+def test_pbs_matrix_columns_follow_node_numbers_and_masking(tmp_path, runtime, flags):
     order = [103, 101, 116, 102] + list(range(104, 116))  # discovery order is not node order; nodes 1-100 do not exist
     states = {110: "job-exclusive\n    jobs = 0/1001.server,1/1001.server", 113: "down"}
     (tmp_path / "pbsnodes_a.txt").write_text("".join("wn%d\n    state = %s\n    np = 2\n\n" % (n, states.get(n, "free")) for n in order))
     (tmp_path / "qstat.txt").write_text("Job id Name User Time Use S Queue\n-----\n1001.server job alice 00:01:00 R workq\n")
     (tmp_path / "qstat_q.txt").write_text("\nserver: m\n\nQueue Memory CPU Walltime Node Run Que Lm State\n-----\nworkq -- -- -- -- 1 0 -- E R\n1 0\n")
-    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "pbs", "-s", str(tmp_path), *flags)
-    assert result.returncode == 0, result.stderr
-    matrix = result.stdout.split("Worker Nodes occupancy", 1)[1].split("User accounts", 1)[0].splitlines()[1:]
+    result, output = runtime("-b", "pbs", "-s", str(tmp_path), *flags)
+    assert result == 0
+    frame = next(output.glob("qtop_fullview_*.out")).read_text()
+    matrix = frame.split("Worker Nodes occupancy", 1)[1].split("User accounts", 1)[0].splitlines()[1:]
     expected = NODES_101_116[flags[:1]]
     assert matrix[: len(expected)] == expected  # masked by default, -m keeps nodes 1-100, wn110 and wn113 in their own columns
 
@@ -179,12 +180,12 @@ def test_queue_node_summary_is_opt_in_and_uses_full_slurm_names(tmp_path, enable
 
 @pytest.mark.parametrize("labels", ([], ["-F"]), ids=("numbered", "named"))
 @pytest.mark.parametrize("colour", ("OFF", "ON"))
-def test_vertical_separators_render_in_every_matrix_line(tmp_path, labels, colour):
+def test_vertical_separators_render_in_every_matrix_line(runtime, labels, colour):
     sample = str(ROOT / "tests/plugins/slurm_samples/large_cluster")
-    options = ["-o", "transpose_wn_matrices=False", "-o", "vertical_separator_every_X_columns=4", "-o", "savepath=%s" % (tmp_path / "output")]
-    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "slurm", "-s", sample, "-c", colour, *labels, *options)
-    assert result.returncode == 0, result.stderr
-    plain = re.sub(r"\x1b\[[0-9;]*m", "", result.stdout)
+    options = ["-o", "transpose_wn_matrices=False", "-o", "vertical_separator_every_X_columns=4"]
+    result, output = runtime("-b", "slurm", "-s", sample, "-c", colour, *labels, *options)
+    assert result == 0
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", next(output.glob("qtop_fullview_*.out")).read_text())
     matrix = [line.split("=")[0] for line in plain.splitlines() if re.search(r"=(\{_*[A-Za-z_]*_*\}|Node state|queue name|Core\d+)$", line)]
     assert any(line.endswith("=Node state") for line in plain.splitlines()) and len(matrix) > 3
     separator_columns = {tuple(index for index, char in enumerate(line) if char == "|") for line in matrix}
@@ -258,58 +259,51 @@ def test_no_scheduler_message_is_not_duplicated(tmp_path):
     assert "Traceback" not in output
 
 
-@pytest.mark.parametrize("failure", ("source", "trace", "config", "empty-config", "invalid-config", "option", "term-size", "log-directory"))
+def write(path, text):
+    path.write_text(text, encoding="utf-8")
+    return str(path)
+
+
+def unusable_local_directory(tmp_path):
+    # An unusable ~/.local, without chmod/root behavior differences between CI and developer
+    # machines: the log falls back with a warning (#615), then reading the user configuration fails.
+    write(tmp_path / ".local", "not a directory")
+    return []
+
+
+MISSING_COMMAND = "savepath: %s\nschedulers:\n  slurm:\n    squeue_file: %%(savepath)s/squeue%%(pid)s.txt, qtop-missing-scheduler-command\n"
+
+# Each failure: arguments built in tmp_path, and the texts its one-line qtop: error must contain.
+OPERATIONAL_FAILURES = {
+    "source": (lambda tmp: ["-b", "slurm", "-s", str(tmp / "missing-source")], ["missing-source"]),
+    "trace": (lambda tmp: ["-b", "slurm", "-s", str(tmp)], ["Scheduler input file"]),
+    "config": (lambda tmp: ["-b", "slurm", "-f", str(tmp / "missing.yaml")], ["missing.yaml"]),
+    "empty-config": (lambda tmp: ["-b", "slurm", "-f", write(tmp / "custom.yaml", "")], ["empty"]),
+    "invalid-config": (lambda tmp: ["-b", "slurm", "-f", write(tmp / "custom.yaml", "sorting: wrong-type\n")], ["Invalid configuration", "custom.yaml"]),
+    "replay-config": (lambda tmp: ["-R", "0000", "-f", write(tmp / "invalid.yaml", "sorting: wrong-type\n")], ["Invalid configuration", "invalid.yaml"]),
+    "option": (lambda tmp: ["-b", "slurm", "-o", "missing-equals"], ["expected KEY=VALUE"]),
+    "term-size": (lambda tmp: ["-b", "slurm", "-o", "term_size=[0,80]"], ["two positive integers"]),
+    "missing-command": (
+        lambda tmp: ["-b", "slurm", "-f", write(tmp / "commands.yaml", MISSING_COMMAND % tmp)],
+        ["Cannot execute scheduler command 'qtop-missing-scheduler-command'", "Check PATH"],
+    ),
+    "malformed-xml": (lambda tmp: ["-b", "sge", "-s", os.path.dirname(write(tmp / "qstat.F.xml.stdout", "<unfinished"))], ["Cannot parse sge scheduler input"]),
+    "log-directory": (lambda tmp: ["-b", "slurm"] + unusable_local_directory(tmp), [".local", "qtop: warning: cannot use log"]),
+}
+
+
+@pytest.mark.parametrize("failure", OPERATIONAL_FAILURES)
 def test_operational_failures_are_actionable(tmp_path, failure):
-    args = ["-b", "slurm"]
-    expected = ""
-    if failure == "source":
-        args += ["-s", str(tmp_path / "missing-source")]
-        expected = "missing-source"
-    elif failure == "trace":
-        args += ["-s", str(tmp_path)]
-        expected = "Scheduler input file"
-    elif failure == "config":
-        args += ["-f", str(tmp_path / "missing.yaml")]
-        expected = "missing.yaml"
-    elif failure in ("empty-config", "invalid-config"):
-        path = tmp_path / "custom.yaml"
-        path.write_text("" if failure == "empty-config" else "sorting: wrong-type\n", encoding="utf-8")
-        args += ["-f", str(path)]
-        expected = "empty" if failure == "empty-config" else "Invalid configuration"
-    elif failure == "option":
-        args += ["-o", "missing-equals"]
-        expected = "expected KEY=VALUE"
-    elif failure == "term-size":
-        args += ["-o", "term_size=[0,80]"]
-        expected = "two positive integers"
-    else:
-        # An unusable ~/.local, without chmod/root behavior differences between
-        # CI and developer machines: the log falls back with a warning (#615),
-        # then reading the user configuration fails.
-        (tmp_path / ".local").write_text("not a directory", encoding="utf-8")
-        expected = ".local"
-    result = run_cli(tmp_path, "qtop_py.qtop", *args)
+    arguments, expected = OPERATIONAL_FAILURES[failure]
+    result = run_cli(tmp_path, "qtop_py.qtop", *arguments(tmp_path))
+    assert result.returncode == 1
+    assert "qtop: " in result.stderr and "Traceback" not in result.stderr
+    assert [text for text in expected if text not in result.stderr] == []
     if failure == "log-directory":
-        assert "qtop: warning: cannot use log" in result.stderr
         assert (tmp_path / "fallback" / ("qtop_fallback_%d" % os.geteuid()) / "qtop.log").is_file()
-    assert result.returncode == 1
-    assert "qtop: " in result.stderr
-    assert expected in result.stderr
-    assert "Traceback" not in result.stderr
-
-
-def test_missing_scheduler_command_is_actionable(tmp_path):
-    config = tmp_path / "commands.yaml"
-    config.write_text(
-        "savepath: %s\nschedulers:\n  slurm:\n    squeue_file: %%(savepath)s/squeue%%(pid)s.txt, qtop-missing-scheduler-command\n" % tmp_path,
-        encoding="utf-8",
-    )
-    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "slurm", "-f", str(config))
-    assert result.returncode == 1
-    assert "Cannot execute scheduler command 'qtop-missing-scheduler-command'" in result.stderr
-    assert "Check PATH" in result.stderr
-    assert "Traceback" not in result.stderr
-    assert not list(tmp_path.glob("tmp*"))
+    if failure == "malformed-xml":
+        assert str(tmp_path) in result.stderr  # names the source directory
+    assert not list(tmp_path.glob("tmp*"))  # no temporary trace is left behind
 
 
 @pytest.mark.parametrize("debug", (False, True))
@@ -324,15 +318,6 @@ def test_operational_tracebacks_are_logged_and_opt_in_on_console(tmp_path, debug
     log = (tmp_path / ".local/qtop/logs/qtop.log").read_text(encoding="utf-8")
     assert "Traceback" in log
     assert "FileNotFoundError" in log
-
-
-def test_malformed_scheduler_xml_has_concise_error(tmp_path):
-    (tmp_path / "qstat.F.xml.stdout").write_text("<unfinished", encoding="utf-8")
-    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "sge", "-s", str(tmp_path))
-    assert result.returncode == 1
-    assert "Cannot parse sge scheduler input" in result.stderr
-    assert str(tmp_path) in result.stderr
-    assert "Traceback" not in result.stderr
 
 
 def test_cli_permission_error_restores_output(monkeypatch, capsys):
@@ -565,16 +550,6 @@ def test_unreadable_optional_config_is_not_ignored(tmp_path, monkeypatch):
     monkeypatch.setattr(yaml_parser, "parse", deny_optional)
     with pytest.raises(PermissionError):
         qtop.configuration.load_yaml_config(SimpleNamespace(CONFFILE=None), str(ROOT), str(tmp_path), str(tmp_path / "etc"), str(tmp_path / "user"))
-
-
-def test_replay_configuration_failure_is_concise(tmp_path):
-    config = tmp_path / "invalid.yaml"
-    config.write_text("sorting: wrong-type\n", encoding="utf-8")
-    result = run_cli(tmp_path, "qtop_py.qtop", "-R", "0000", "-f", str(config))
-    assert result.returncode == 1
-    assert "Invalid configuration" in result.stderr
-    assert str(config) in result.stderr
-    assert "Traceback" not in result.stderr
 
 
 @pytest.mark.skipif(os.name != "posix", reason="Compare qtop execution with a POSIX shell")
@@ -823,7 +798,7 @@ def test_optional_user_details_failures_do_not_stop_rendering(tmp_path, realtime
 
 @pytest.mark.parametrize("slots", [1, 16])
 @pytest.mark.parametrize("array_tasks", [False, True])
-def test_sge_repeated_job_numbers_preserve_core_ownership(tmp_path, array_tasks, slots):
+def test_sge_repeated_job_numbers_preserve_core_ownership(tmp_path, runtime, array_tasks, slots):
     job = (
         '<job_list state="running"><JB_job_number>{number}</JB_job_number><JB_name>job</JB_name>'
         "<JB_owner>{user}</JB_owner><state>r</state><JAT_start_time>now</JAT_start_time><slots>{slots}</slots>{task}</job_list>"
@@ -839,9 +814,8 @@ def test_sge_repeated_job_numbers_preserve_core_ownership(tmp_path, array_tasks,
         + "</Queue-List></queue_info><job_info/></job_info>"
     )
     (tmp_path / "qstat.F.xml.stdout").write_text(trace)
-    output = tmp_path / "results"
-    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "sge", "-s", str(tmp_path), "-O", "-c", "OFF", "-o", "savepath=" + str(output))
-    assert result.returncode == 0, result.stderr
+    result, output = runtime("-b", "sge", "-s", str(tmp_path))
+    assert result == 0
     frame = next(output.glob("qtop_fullview_*.out")).read_text()
     rows = dict(re.findall(r"\[\s*\d+\]\s+(\w+)\s*\|[^|]*\|\s*(\d+)\s*\|", frame))
     assert rows == {"alice": "1", "bob": "1"}
@@ -1005,7 +979,7 @@ def test_truncated_slurm_array_row_is_reported_not_fatal(tmp_path):
 
 @pytest.mark.parametrize("availability", ["up", "down", "drain", "inact"])
 @pytest.mark.parametrize("expanded", [False, True])
-def test_slurm_queueing_line_marks_blocked_partitions(tmp_path, availability, expanded):
+def test_slurm_queueing_line_marks_blocked_partitions(tmp_path, runtime, availability, expanded):
     import json
     import shutil
 
@@ -1017,10 +991,9 @@ def test_slurm_queueing_line_marks_blocked_partitions(tmp_path, availability, ex
         if row[1].rstrip("*") == "compute":
             row[-1] = availability
     info.write_text("".join("|".join(row) + "\n" for row in rows))
-    output = tmp_path / "results"
     flags = ["--expand-queues"] if expanded else []
-    result = run_cli(tmp_path, "qtop_py.qtop", "-b", "slurm", "-s", str(source), "-E", "-O", "-c", "OFF", "-o", "savepath=" + str(output), *flags)
-    assert result.returncode == 0, result.stderr
+    result, output = runtime("-b", "slurm", "-s", str(source), *flags)
+    assert result == 0
     frame = next(output.glob("qtop_fullview_*.out")).read_text()
     if availability == "up":
         assert re.search(r"compute\s*: ", frame)

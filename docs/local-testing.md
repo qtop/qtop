@@ -60,18 +60,18 @@ full-run reports and collection checks reviewed on 2026-11-27:
 
 | Target | Pytest cases per invocation | Coverage enforced |
 |---|---:|---|
-| `test-fast` | 1,401 parser/model/UI cases | No |
-| `test` or `ci` | 2,640: 2,636 parallel, then 4 web cases serially | No |
-| `coverage`, `coverage-xml` or `pre-pr` | Same 2,640 cases, once | 95% statements, 93% branches |
+| `test-fast` | 1,400 parser/model/UI cases | No |
+| `test` or `ci` | 2,639: 2,635 parallel, then 4 web cases serially | No |
+| `coverage`, `coverage-xml` or `pre-pr` | Same 2,639 cases, once | 95% statements, 93% branches |
 | `property-test` | 23 cases, already included in the full suite | No |
 | `test-packaging` | 7 build-and-install cases that `test` and `coverage` skip; build jobs and nightly lanes run them | No |
 | `nightly-properties` | Same 23 cases with the extended profile | No |
 
 Counts describe this revision and installed optional tooling, not fixed quotas.
 The observed pytest 9.2 JUnit summary counter also includes 61 unittest
-subtests: `main.xml` reports 2,697 tests and contains 2,636 `<testcase>`
-elements; `web.xml` adds four. The pytest total is therefore 2,640 cases, while the JUnit
-summary counters add up to 2,701 outcomes. Do not treat those as extra collected
+subtests: `main.xml` reports 2,696 tests and contains 2,635 `<testcase>`
+elements; `web.xml` adds four. The pytest total is therefore 2,639 cases, while the JUnit
+summary counters add up to 2,700 outcomes. Do not treat those as extra collected
 pytest cases.
 
 Hypothesis uses up to 100 examples for each generated property normally and

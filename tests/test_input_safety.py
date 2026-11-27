@@ -16,6 +16,7 @@ from xml.etree.ElementTree import ParseError
 
 import pytest
 from mvu_support import explicit_model
+from support import write_tar
 
 from qtop_py import configuration, qtop
 from qtop_py import core_process as process_io
@@ -144,18 +145,10 @@ def test_xml_limits_are_enforced_during_parsing(tmp_path, monkeypatch, kind):
         extractor.get_xml_tree(str(path))
 
 
-def make_archive(path, mode, members):
-    with tarfile.open(str(path), mode) as archive:
-        for name, data in members:
-            member = tarfile.TarInfo(name)
-            member.size = len(data)
-            archive.addfile(member, io.BytesIO(data))
-
-
 @pytest.mark.parametrize("mode", ["w", "w:gz", "w:bz2", "w:xz"])
 def test_snapshot_limits_apply_to_decompressed_data(tmp_path, monkeypatch, mode):
     path = tmp_path / "bomb.tar"
-    make_archive(path, mode, [("padding", b"0" * 65536), (sample.SNAPSHOT_NAME, b"{}")])
+    write_tar(path, mode=mode, members=[("padding", b"0" * 65536), (sample.SNAPSHOT_NAME, b"{}")])
     monkeypatch.setattr(safety, "MAX_ARCHIVE_BYTES", 4096)
     with pytest.raises(safety.ResourceLimitError, match="decompressed"):
         sample.load_snapshot(str(path))
@@ -173,11 +166,11 @@ def test_snapshot_archive_closes_source_on_invalid_header(monkeypatch):
 @pytest.mark.parametrize("first", [b"{}", b"null"])
 def test_snapshot_member_limit_and_duplicate_rejection(tmp_path, monkeypatch, first):
     path = tmp_path / "sample.tar"
-    make_archive(path, "w", [("a", b""), ("b", b""), (sample.SNAPSHOT_NAME, b"{}")])
+    write_tar(path, mode="w", members=[("a", b""), ("b", b""), (sample.SNAPSHOT_NAME, b"{}")])
     monkeypatch.setattr(safety, "MAX_ARCHIVE_MEMBERS", 2)
     with pytest.raises(safety.ResourceLimitError, match="member"):
         sample.load_snapshot(str(path))
-    make_archive(path, "w", [(sample.SNAPSHOT_NAME, first), (sample.SNAPSHOT_NAME, b"{}")])
+    write_tar(path, mode="w", members=[(sample.SNAPSHOT_NAME, first), (sample.SNAPSHOT_NAME, b"{}")])
     with pytest.raises(ValueError, match="duplicate"):
         sample.load_snapshot(str(path))
 
