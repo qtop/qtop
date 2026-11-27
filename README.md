@@ -9,7 +9,7 @@
 [![Security Insights metadata](https://img.shields.io/badge/Security_Insights-v2.2.0-blue)](security-insights.yml)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16179/badge)](https://www.bestpractices.dev/projects/16179)
 
-qtop is a scheduler-independent observability layer for HPC clusters, with a fast terminal interface. It is a portable, dependency-light cluster observability and scheduler debugging tool for Slurm, PBS, SGE, OAR, LSF and HTCondor - and even more, with your contributed plugin effort.
+qtop is a scheduler-independent observability layer for HPC & AI clusters, with a fast terminal interface. It is a portable, dependency-light cluster observability and scheduler debugging tool for Slurm, PBS, SGE, OAR, LSF and HTCondor - and even more, with your contributed plugin effort.
 
 See your whole cluster in one terminal. Capture it. Replay it. Compare it.
 

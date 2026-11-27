@@ -5,6 +5,13 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261125
 
+- Bugfix: -E/web JSON exports land via a hidden .part rename; SIGINT never leaves an empty snapshot
+- CI: nightly lanes retry failed gates twice after 60s of dots (ci/scripts/retry.sh); PR lanes don't
+- Docs: README calls qtop an observability layer for HPC & AI clusters
+- Docs: local-testing.md counts refreshed for 0.9.20261125: 2,640 pytest cases, 22 scheduler samples
+- Tests: CHANGELOG headings must be unique and newest first; latest items sorted by type
+- Tools: prepare_release.py --write prints the annotated v-tag command for the merge commit
+- Tools: make release-audit reports CHANGELOG/tag/version drift from local tags (non-blocking)
 - Release: update version metadata to 0.9.20261125
 
 ## 0.9.20261124

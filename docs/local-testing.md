@@ -55,29 +55,28 @@ structure](ci-structure.md) for legacy contracts, coverage and soak tests.
 
 ## When tests run and how many
 
-For the pinned Linux x86-64 Python 3.12 environment at revision `1134990`
-(0.9.20261115), with the full-run reports and collection checks reviewed on
-2026-11-14:
+For the pinned Linux x86-64 Python 3.12 environment at 0.9.20261125, with the
+full-run reports and collection checks reviewed on 2026-11-27:
 
 | Target | Pytest cases per invocation | Coverage enforced |
 |---|---:|---|
-| `test-fast` | 664 parser/model/UI cases | No |
-| `test` or `ci` | 1,569: 1,565 parallel, then 4 web cases serially | No |
-| `coverage`, `coverage-xml` or `pre-pr` | Same 1,569 cases, once | 95% statements, 93% branches |
+| `test-fast` | 1,401 parser/model/UI cases | No |
+| `test` or `ci` | 2,640: 2,636 parallel, then 4 web cases serially | No |
+| `coverage`, `coverage-xml` or `pre-pr` | Same 2,640 cases, once | 95% statements, 93% branches |
 | `property-test` | 23 cases, already included in the full suite | No |
 | `test-packaging` | 7 build-and-install cases that `test` and `coverage` skip; build jobs and nightly lanes run them | No |
 | `nightly-properties` | Same 23 cases with the extended profile | No |
 
 Counts describe this revision and installed optional tooling, not fixed quotas.
-The observed pytest 9.2 JUnit summary counter also includes 29 unittest
-subtests: `main.xml` reports 1,594 tests and contains 1,565 `<testcase>`
-elements; `web.xml` adds four. The pytest total is therefore 1,569 cases, while the JUnit
-summary counters add up to 1,598 outcomes. Do not treat those as extra collected
+The observed pytest 9.2 JUnit summary counter also includes 61 unittest
+subtests: `main.xml` reports 2,697 tests and contains 2,636 `<testcase>`
+elements; `web.xml` adds four. The pytest total is therefore 2,640 cases, while the JUnit
+summary counters add up to 2,701 outcomes. Do not treat those as extra collected
 pytest cases.
 
 Hypothesis uses up to 100 examples for each generated property normally and
 1,000 in the nightly profile; examples are not extra pytest cases. `pre-pr`
-also runs 13 scheduler samples and both 5,000-case fuzzers (seed 488), plus
+also runs 22 scheduler samples and both 5,000-case fuzzers (seed 488), plus
 lint and type checks. Those checks are separate from the pytest totals.
 
 `nox` defaults to `pre-pr` followed by `schema-ci`: one full pytest run plus
