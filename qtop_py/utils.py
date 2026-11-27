@@ -20,6 +20,8 @@ from qtop_py import fileutils
 from qtop_py.constants import QTOP_LOGFILE
 from qtop_py.core_safety import SafeLogFormatter, visible_text
 
+logger = logging.getLogger(__name__)
+
 
 class PrivateFileHandler(logging.FileHandler):
     """Log file handler that opens its file privately (mode 0600); strict is --strict-parents."""
@@ -47,8 +49,8 @@ def init_logging(options: Any) -> None:
 
     formatter = SafeLogFormatter("%(asctime)s - %(levelname)s - %(message)s", "%Y-%m-%d %H:%M:%S")
 
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    root = logging.getLogger()
+    root.setLevel(logging.DEBUG)
 
     strict = bool(getattr(options, "STRICT_PARENTS", False))
     try:
@@ -61,18 +63,18 @@ def init_logging(options: Any) -> None:
     else:
         fh.setLevel(logging.DEBUG if options.DEBUG else log_level)
         fh.setFormatter(formatter)
-        logger.addHandler(fh)
+        root.addHandler(fh)
 
     stream_handler = logging.StreamHandler()
     stream_handler.setLevel(logging.DEBUG if options.DEBUG else logging.ERROR)
     stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-    logger.disabled = False
+    root.addHandler(stream_handler)
+    root.disabled = False
 
-    logging.info("\n%sSTARTING NEW LOG ENTRY...%s\n\n", "=" * 50, "=" * 50)
+    logger.info("\n%sSTARTING NEW LOG ENTRY...%s\n\n", "=" * 50, "=" * 50)
 
-    logging.debug("Verbosity level = %s", options.verbose)
-    logging.debug("input, output isatty: %s\t%s", sys.stdin.isatty(), sys.stdout.isatty())
+    logger.debug("Verbosity level = %s", options.verbose)
+    logger.debug("input, output isatty: %s\t%s", sys.stdin.isatty(), sys.stdout.isatty())
 
 
 def backend_option_hooks() -> List[Any]:

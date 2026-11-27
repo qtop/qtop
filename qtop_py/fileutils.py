@@ -17,6 +17,8 @@ from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Set,
 
 from qtop_py.core_safety import visible_text
 
+logger = logging.getLogger(__name__)
+
 
 class StartupProgress:
     """Report each distinct scheduler source once, until startup completes."""
@@ -240,23 +242,8 @@ def get_new_temp_file(_savepath: str, suffix: str, prefix: str) -> Tuple[int, st
     mkstemp, not NamedTemporaryFile: sys.stdout is redirected to the descriptor.
     """
     fd, temp_filepath = tempfile.mkstemp(suffix=suffix, prefix=prefix, dir=_savepath)  # **kwargs
-    logging.debug("temp_filepath: %s", temp_filepath)
+    logger.debug("temp_filepath: %s", temp_filepath)
     return fd, temp_filepath
-
-
-def safe_exit_with_file_close(handle: int, name: str, stdout: TextIO, options: Any, _savepath: str, qtop_logfile: str, sample_filename: str, delete_file: bool = False) -> None:
-    """Restore stdout, close the output file (deleting it if asked) and exit with 0."""
-    sys.stdout.write("\nExiting. Thank you for ...watching ;)\n")
-    sys.stdout.flush()
-    if sys.stdout is not stdout:
-        sys.stdout.close()
-    sys.stdout = stdout
-    with contextlib.suppress(OSError):
-        os.close(handle)
-    if delete_file:
-        os.unlink(name)  # this deletes the file
-    # The caller finalizes the support archive in its finally block.
-    sys.exit(0)
 
 
 class _SampleArchive(tarfile.TarFile):
@@ -345,10 +332,10 @@ def add_to_sample(filepaths_to_add: List[str], sample_out: tarfile.TarFile, samp
     for filepath_to_add in filepaths_to_add:
         fn = os.path.basename(filepath_to_add)
         try:
-            logging.debug("Adding %s to sample...", filepath_to_add)
+            logger.debug("Adding %s to sample...", filepath_to_add)
             sample_out.add(filepath_to_add, arcname=fn if not subdir else os.path.join(subdir, fn), filter=_without_archive_owner)
         except (OSError, tarfile.TarError) as error:
-            logging.error("Could not add %s to the sample archive; skipping it: %s", filepath_to_add, error)
+            logger.error("Could not add %s to the sample archive; skipping it: %s", filepath_to_add, error)
     return sample_out
 
 

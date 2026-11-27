@@ -28,6 +28,8 @@ from qtop_py.mvu_query import WNOccupancy
 from qtop_py.ui.terminal import capture_terminal
 from qtop_py.ui.viewport import terminal_rows
 
+logger = logging.getLogger(__name__)
+
 # Accounts-table state columns when accounts_states is unset: jobs >= R + Q + O(ther), as the Summary's Total=R+Q+Other.
 DEFAULT_ACCOUNT_STATES: "Final" = ("running_of_user", "queued_of_user", "other_of_user")
 # Named worker-node labels change colour per name group, and at least every this many nodes within one (#197).
@@ -175,7 +177,7 @@ class TextDisplay(object):
         queues = cluster.queues_dict
 
         if self.args.REMAP:
-            logging.warning("Remapping WN names and retrying heuristics")
+            logger.warning("Remapping WN names and retrying heuristics")
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
         print(
@@ -572,7 +574,7 @@ class TextDisplay(object):
             max_width = len(joined_list)
             self.viewport.max_width = max_width
 
-            logging.debug("Printed horizontally from %s to %s", self.viewport.h_start, self.viewport.h_stop)
+            logger.debug("Printed horizontally from %s to %s", self.viewport.h_start, self.viewport.h_stop)
         else:
             self.viewport.max_width = self.viewport.get_term_size()[1]
         print()

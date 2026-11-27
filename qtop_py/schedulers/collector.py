@@ -25,6 +25,8 @@ from qtop_py.snapshot import Snapshot
 if TYPE_CHECKING:
     from qtop_py import core_state_types as state_types
 
+logger = logging.getLogger(__name__)
+
 
 def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, Tuple[str, str]]:
     """Return {input_key: (path, command)} for the configured commands, with PID suffixes for live collection."""
@@ -146,7 +148,7 @@ def make_collector(args: Any, config: Dict[str, Any], backend: Any, scheduler: s
             fallback = getattr(selected, "fallback_backend", None)
             if probed or fallback is None or not selected.capability_failure(error):
                 raise
-            logging.warning("%s collection capability unavailable: %s; falling back to %s. %s", scheduler, error, fallback.get_mnemonic(), getattr(selected, "fallback_note", ""))
+            logger.warning("%s collection capability unavailable: %s; falling back to %s. %s", scheduler, error, fallback.get_mnemonic(), getattr(selected, "fallback_note", ""))
             selected = fallback
             built = attempt()
         finally:

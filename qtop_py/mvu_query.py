@@ -23,6 +23,8 @@ from qtop_py.mvu import MVU_reserved_pattern_mappings as _reserved_pattern_mappi
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final
 
+logger = logging.getLogger(__name__)
+
 ACCOUNT_LETTERS: "Final" = re.compile(r"[A-Za-z]+")
 # A highlight rule as a test on a core's (user, queue): the matched text, or None.
 HighlightMatcher = Callable[[str, str], Optional[str]]
@@ -211,7 +213,7 @@ class WNOccupancy(object):
         state_abbrevs = dict(self.config["state_abbreviations"][self.MVU_model.scheduler])
         for job_state in job_states:
             if job_state not in state_abbrevs:
-                logging.warning("Unknown job state %s; retaining job in totals without classifying it as running or queued.", job_state)
+                logger.warning("Unknown job state %s; retaining job in totals without classifying it as running or queued.", job_state)
                 state_abbrevs[job_state] = "unknown_of_user"
 
         user_job_per_state_counts = self._create_user_job_counts(user_names, job_states, state_abbrevs)
@@ -319,8 +321,8 @@ class WNOccupancy(object):
             stop = start + wn_number
             extra_matrices_nr = 0
 
-        logging.debug("reported term_columns, DEADWEIGHT: %s\t%s", term_columns, DEADWEIGHT)
-        logging.debug("reported start/stop lengths: %s--> %s", start, stop)
+        logger.debug("reported term_columns, DEADWEIGHT: %s\t%s", term_columns, DEADWEIGHT)
+        logger.debug("reported start/stop lengths: %s--> %s", start, stop)
         return start, stop, extra_matrices_nr
 
     def calc_all_wnid_label_lines(self, NAMED_WNS: Any) -> Dict[str, Any]:  # (total_wn) in case of multiple cluster.node_name_prefixes
@@ -370,7 +372,7 @@ class WNOccupancy(object):
             ) from error
         min_len = min(user_max_len, real_max_len)
         if real_max_len > user_max_len:
-            logging.warning("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user", {"attr": part_name})
+            logger.warning("Some longer %(attr)ss have been cropped due to %(attr)s length restriction by user", {"attr": part_name})
 
         # initialisation of lines
         multiline_map: Dict[str, Any] = OrderedDict()
@@ -546,7 +548,7 @@ class WNOccupancy(object):
             resolved = self._resolve(str(job), job_to_user_and_queue)
             user_queue = job_to_user_and_queue.get(resolved)
             if user_queue is None:  # as str(KeyError(resolved)) in the former second pass
-                logging.warning("Scheduler node allocation references an unlisted job (ID %r). Please check with the SysAdmin.", resolved)
+                logger.warning("Scheduler node allocation references an unlisted job (ID %r). Please check with the SysAdmin.", resolved)
                 cell = utils.ColorStr("?", color="Yellow")
             else:
                 cell = cells.get(user_queue)
@@ -591,7 +593,7 @@ class WNOccupancy(object):
             try:
                 pattern = re.compile(rule)
             except re.error as exc:
-                logging.warning("Ignoring invalid highlight pattern %r: %s", rule, exc)
+                logger.warning("Ignoring invalid highlight pattern %r: %s", rule, exc)
                 matchers.append(_match_nothing)
                 continue
             matchers.append(_pattern_matcher(pattern, on_queue=kind == "queue"))
@@ -798,7 +800,7 @@ class Cluster(object):
             REMAP = True
         else:
             REMAP = False
-        logging.info("Blind Remapping [user selected]: %s,\n\t\t\t\t\t\t\t\t  Decided Remapping: %s", self.args.BLINDREMAP, REMAP)
+        logger.info("Blind Remapping [user selected]: %s,\n\t\t\t\t\t\t\t\t  Decided Remapping: %s", self.args.BLINDREMAP, REMAP)
 
         if logging.getLogger().isEnabledFor(logging.DEBUG) and REMAP:
             user_request = "The user has requested it (blindremap switch)" if self.args.BLINDREMAP else False
@@ -813,7 +815,7 @@ class Cluster(object):
 
             numbering_collisions = "there are numbering collisions or non-numbered WNs" if has_mixed_or_non_numeric_wns else False
 
-            logging.debug("Remapping decided due to: \n\t %s", list(filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions])))
+            logger.debug("Remapping decided due to: \n\t %s", list(filter(None, [user_request, subclusters, exotic_starting, percentage_unassigned, numbering_collisions])))
 
         return REMAP
 
@@ -905,12 +907,12 @@ class Cluster(object):
         try:
             return sorted(self.worker_nodes, key=sort_key, reverse=self.config["sorting"]["reverse"])
         except (IndexError, ValueError):
-            logging.critical("There's (probably) something wrong in your sorting configuration in %s.", QTOPCONF_YAML)
+            logger.critical("There's (probably) something wrong in your sorting configuration in %s.", QTOPCONF_YAML)
             raise
         except KeyError as e:
-            logging.error("Worker Nodes don't contain '%s' as a key.", e)
+            logger.error("Worker Nodes don't contain '%s' as a key.", e)
         except NameError as e:
-            logging.error("Wrong input '%s'. Please check the examples in qtopconf.yaml.", e)
+            logger.error("Wrong input '%s'. Please check the examples in qtopconf.yaml.", e)
 
         return self.worker_nodes
 
@@ -1009,7 +1011,7 @@ class WNFilter(object):
                 working_cores = sum(len(node.get("core_job_map", dict())) for node in self.worker_nodes)
                 total_cores = sum(int(node.get("np")) for node in self.worker_nodes)
             else:
-                logging.error("Selected filter results in empty worker node set. Cancelling.")
+                logger.error("Selected filter results in empty worker node set. Cancelling.")
 
         return self.worker_nodes, offdown_nodes, avail_nodes, working_cores, total_cores
 
@@ -1017,7 +1019,7 @@ class WNFilter(object):
     @utils.CountCalls
     def report_filtered_view() -> None:
         """Log that the occupancy view is filtered."""
-        logging.error("*** WN Occupancy view is filtered.")
+        logger.error("*** WN Occupancy view is filtered.")
 
 
 MVU_ViewData = namedtuple("MVU_ViewData", "model cluster occupancy")

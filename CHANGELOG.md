@@ -5,9 +5,11 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261126
 
+- Cleanup: drop fileutils.safe_exit_with_file_close, which nothing called but its own test
 - Docs: documentation.md and qtop.1 cover Slurm 26.11 serializer/xjson and --strict for slurm_json
 - Feature: --strict replaces --demanding (kept as an alias) and also stops on non-strict Slurm JSON
 - Feature: slurm_json reads xjson complex/json6 tokens (NaN, -NaN, \xNN), warning once per run
+- Refactor: modules log via getLogger(__name__); ruff LOG015 now forbids logging.info() & co.
 - Refactor: slurm_json keeps per-version allocation layouts in a table, not v0.0.40 conditionals
 - Tests: slurm_json covers xjson-shaped responses, lenient vs --strict tokens and a CLI failure row
 - Release: update version metadata to 0.9.20261126

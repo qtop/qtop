@@ -33,6 +33,8 @@ from qtop_py.core_safety import ResourceLimitError, literal_eval
 from qtop_py.schedulers import registry
 from qtop_py.schedulers.gpu import ACCELERATOR_KINDS
 
+logger = logging.getLogger(__name__)
+
 # Parsed YAML layers by path, each with the stat signature it was parsed under.
 # Watch mode reloads the configuration every frame; an unchanged file is
 # deep-copied from here instead of being re-parsed, and any edit (new mtime,
@@ -481,7 +483,7 @@ def prepare_config(config: Dict[str, Any], args: Any = None) -> Tuple[Dict[str, 
         validate_config(config)
     strict = bool(getattr(args, "STRICT_PARENTS", False))
     config["savepath"] = fileutils.with_fallback("savepath", config["savepath"], lambda path: fileutils.private_save_directory(path, strict), strict=strict)
-    logging.debug("%s files will be saved in directory %s.", config["scheduler"], config["savepath"])
+    logger.debug("%s files will be saved in directory %s.", config["scheduler"], config["savepath"])
 
     return config, user_to_color, nodestate_to_color
 
@@ -492,15 +494,15 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
     if getattr(args, "load_sample", None):
         return prepare_config(args.sample_snapshot["config"], args)
     config = parse_layer(os.path.join(os.path.realpath(package_dir), QTOPCONF_YAML))
-    logging.info("Default configuration dictionary loaded. Length: %s items", len(config))
+    logger.info("Default configuration dictionary loaded. Length: %s items", len(config))
     for label, directory in (("Env", system_dir), ("User", user_dir)):
         try:
             layer = parse_layer(os.path.join(directory, QTOPCONF_YAML))
         except FileNotFoundError:
-            logging.info("%s could not be found in %s/", QTOPCONF_YAML, directory)
+            logger.info("%s could not be found in %s/", QTOPCONF_YAML, directory)
         else:
             merge_layer(config, layer)
-            logging.info("%s configuration loaded from %s/. Length: %s items", label, directory, len(layer))
+            logger.info("%s configuration loaded from %s/. Length: %s items", label, directory, len(layer))
     if args.CONFFILE:
         for directory in (user_dir, initial_cwd):
             try:
@@ -508,13 +510,13 @@ def load_yaml_config(args: Any, package_dir: str, initial_cwd: str, system_dir: 
             except FileNotFoundError:
                 continue
             merge_layer(config, custom)
-            logging.info("Custom User configuration loaded from %s/. Length: %s items", directory, len(custom))
+            logger.info("Custom User configuration loaded from %s/. Length: %s items", directory, len(custom))
             break
         else:
             raise OperationalError("Custom configuration file %s was not found in %s/ or %s/." % (args.CONFFILE, user_dir, initial_cwd))
     if "palettes" not in config:  # not setdefault(): that would load every palettes.yaml even when a layer already set them
         config["palettes"] = load_palettes((os.path.realpath(package_dir), system_dir, user_dir))
-    logging.info("Updated main dictionary. Length: %s items", len(config))
+    logger.info("Updated main dictionary. Length: %s items", len(config))
     return prepare_config(config, args)
 
 
