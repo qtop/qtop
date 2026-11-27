@@ -3,6 +3,10 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261126
+
+- Release: update version metadata to 0.9.20261126
+
 ## 0.9.20261125
 
 - Bugfix: -E/web JSON exports land via a hidden .part rename; SIGINT never leaves an empty snapshot
