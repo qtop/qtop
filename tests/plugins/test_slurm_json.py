@@ -10,10 +10,17 @@ import pytest
 from qtop_py.core_api import BackendOptions
 from qtop_py.core_cluster_state import validate_cluster_state
 from qtop_py.core_sample import anonymize_state
+from qtop_py.plugins import slurm_json
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.plugins.slurm_json import SUPPORTED_PARSERS, SlurmJSONBatchSystem, UnsupportedSlurmJSON
 
 SAMPLES = Path(__file__).parent / "slurm_json_samples"
+
+
+@pytest.fixture(autouse=True)
+def fresh_warnings(monkeypatch):
+    """Each test starts a new run: no non-strict JSON warning has been given yet."""
+    monkeypatch.setattr(slurm_json, "_WARNED", set())
 
 
 @pytest.fixture(params=SUPPORTED_PARSERS, ids=SUPPORTED_PARSERS)
@@ -401,6 +408,15 @@ def test_complex_and_json6_tokens_warn_by_default_and_stop_with_strict(json_file
     assert "Slurm JSON is not strict RFC 8259 JSON" in caplog.text and "slurm_nodes.json" in caplog.text
     with pytest.raises(ValueError, match=r"not strict RFC 8259 JSON \(serializer/xjson SerializerParameters=complex or json6\?\).*--strict"):
         SlurmJSONBatchSystem(json_files, {}, SimpleNamespace(ANONYMIZE=False, SOURCEDIR=True, STRICT=True))
+
+
+def test_non_strict_json_warns_once_per_run_not_every_collection(json_files, caplog):
+    xjson(json_files, "nodes", "power", "-NaN")
+    xjson(json_files, "jobs", "power", "NaN")
+    for _collection in range(3):
+        backend(json_files)
+    warnings = [record.getMessage() for record in caplog.records if "not strict RFC 8259" in record.getMessage()]
+    assert len(warnings) == 2 and "found -NaN or \\x escapes" in warnings[0] and "found NaN" in warnings[1]
 
 
 def test_non_finite_numbers_read_as_unset_where_an_integer_has_a_default(tmp_path):

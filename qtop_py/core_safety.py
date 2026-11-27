@@ -143,17 +143,10 @@ def check_nesting(text: str) -> None:
             raise ResourceLimitError("structured input exceeds nesting or item limits")
 
 
-def load_json(
-    stream: Any,
-    limit: Optional[int] = None,
-    object_pairs_hook: Optional[Callable[[Any], Any]] = None,
-    parse_constant: Optional[Callable[[str], Any]] = None,
-    repair: Optional[Callable[[str], str]] = None,
-) -> Any:
-    """Parse JSON from a stream; raise ResourceLimitError over limit bytes (default MAX_INPUT_BYTES) or the nesting limits.
+def read_json_text(stream: Any, limit: Optional[int] = None) -> str:
+    """Read JSON text for the caller to parse; raise ResourceLimitError over the size or nesting limits.
 
-    parse_constant is called for NaN, Infinity and -Infinity, as in json.loads. When the text does not
-    parse, repair(text) may return a corrected text to parse instead, or raise; unchanged text re-raises.
+    limit defaults to MAX_INPUT_BYTES. Bytes are decoded in the encoding json.detect_encoding finds.
     """
     limit = MAX_INPUT_BYTES if limit is None else limit
     text = stream.read(limit + 1)
@@ -161,13 +154,12 @@ def load_json(
         raise ResourceLimitError("JSON input exceeds size limit")
     text = text.decode(json.detect_encoding(text)) if isinstance(text, bytes) else text
     check_nesting(text)
-    try:
-        return json.loads(text, object_pairs_hook=object_pairs_hook, parse_constant=parse_constant)
-    except json.JSONDecodeError:
-        repaired = repair(text) if repair else text
-        if repaired == text:
-            raise
-    return json.loads(repaired, object_pairs_hook=object_pairs_hook, parse_constant=parse_constant)
+    return text
+
+
+def load_json(stream: Any, limit: Optional[int] = None, object_pairs_hook: Optional[Callable[[Any], Any]] = None) -> Any:
+    """Parse JSON from a stream within read_json_text's size and nesting limits."""
+    return json.loads(read_json_text(stream, limit), object_pairs_hook=object_pairs_hook)
 
 
 def literal_eval(value: Any) -> Any:

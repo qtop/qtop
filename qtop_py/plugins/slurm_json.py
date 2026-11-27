@@ -2,12 +2,13 @@
 ## SPDX-License-Identifier: MIT
 """Versioned Slurm JSON input using the existing Slurm accounting and GRES rules."""
 
+import json
 import logging
 import os
 import re
 import shlex
 from collections import Counter
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 from qtop_py import core_safety as safety
 from qtop_py.core_api import open_input
@@ -15,7 +16,7 @@ from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor, slurm_ac
 from qtop_py.schedulers.gpu import parse_accelerator_gres
 
 if TYPE_CHECKING:
-    from typing import Final, NoReturn
+    from typing import Final
 
     from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import ClusterState, Config, Options
@@ -41,6 +42,9 @@ SUPPORTED_PARSERS: "Final" = ("v0.0.40", "v0.0.41", "v0.0.42", "v0.0.43", "v0.0.
 NOT_STRICT: "Final" = "Slurm JSON is not strict RFC 8259 JSON (serializer/xjson SerializerParameters=complex or json6?)"
 _NON_STRICT_TOKENS: "Final" = re.compile(r'"(?:[^"\\]|\\.)*"|-NaN')
 _ESCAPES: "Final" = re.compile(r"\\(x[0-9A-Fa-f]{2}|.)")
+# (response, tokens) already warned about: the backend is rebuilt on every collection, so a watch
+# session would otherwise repeat the same warning every cycle.
+_WARNED: "Set[Tuple[str, str]]" = set()
 
 
 class UnsupportedSlurmJSON(ValueError):
@@ -79,11 +83,6 @@ def unique_fields(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
     return fields
 
 
-def refuse_non_strict(found: str) -> "NoReturn":
-    """Stop on a serializer/xjson complex/json6 token under --strict."""
-    raise ValueError("%s: found %s; remove those parameters, or run without --strict to read it with a warning" % (NOT_STRICT, found))
-
-
 def lenient_json(text: str) -> str:
     r"""Return text with -NaN read as NaN and \xNN escapes as \u00NN; strings are otherwise unchanged."""
 
@@ -96,33 +95,43 @@ def lenient_json(text: str) -> str:
     return _NON_STRICT_TOKENS.sub(token, text)
 
 
+def decode_slurm_json(text: str, strict: bool = False) -> Tuple[Any, List[str]]:
+    """Parse a Slurm JSON response; return it with the non-strict tokens it held (none for strict JSON).
+
+    Non-finite numbers are read as unset (None), as serializer/xjson writes them by default. The
+    complex/json6 forms that json.loads cannot read are rewritten by lenient_json and parsed again,
+    only after a strict parse fails. With strict, any such token raises ValueError instead.
+    """
+    found: List[str] = []
+
+    def constant(name: str) -> None:
+        found.append(name)
+
+    try:
+        data = json.loads(text, object_pairs_hook=unique_fields, parse_constant=constant)
+    except json.JSONDecodeError:
+        repaired = lenient_json(text)
+        if repaired == text:
+            raise
+        found.append("-NaN or \\x escapes")
+        data = json.loads(repaired, object_pairs_hook=unique_fields, parse_constant=constant)
+    found = sorted(set(found))
+    if found and strict:
+        raise ValueError("%s: found %s; remove those parameters, or run without --strict to read it with a warning" % (NOT_STRICT, ", ".join(found)))
+    return data, found
+
+
 def read_response(path: str, key: str, options: Any = None) -> Tuple[str, List[Dict[str, Any]]]:
     """Reject unknown schemas, error responses and malformed record lists.
 
-    Non-finite numbers are read as unset (null), as serializer/xjson writes them by default. Its
-    complex/json6 tokens are read with one warning per response, or rejected with --strict.
+    Non-strict JSON (see decode_slurm_json) is read with one warning per response and run, or
+    rejected with options.STRICT (--strict).
     """
-    strict = bool(getattr(options, "STRICT", False))
-    relaxed: List[str] = []
-
-    def constant(name: str) -> None:
-        if strict:
-            refuse_non_strict(name)
-        relaxed.append(name)
-
-    def repair(text: str) -> str:
-        repaired = lenient_json(text)
-        if repaired != text:
-            if strict:
-                refuse_non_strict("-NaN or \\x escapes")
-            relaxed.append("-NaN or \\x escapes")
-        return repaired
-
     with open_input(path, encoding="utf-8", options=options) as stream:
-        data = safety.load_json(stream, object_pairs_hook=unique_fields, parse_constant=constant, repair=repair)
-    if relaxed:
-        found = ", ".join(sorted(set(relaxed)))
-        logging.getLogger(__name__).warning("%s in %s: found %s; non-finite numbers read as unset (--strict stops instead)", NOT_STRICT, os.path.basename(path), found)
+        data, found = decode_slurm_json(safety.read_json_text(stream), strict=bool(getattr(options, "STRICT", False)))
+    if found and (key, ", ".join(found)) not in _WARNED:
+        _WARNED.add((key, ", ".join(found)))
+        logging.getLogger(__name__).warning("%s in %s: found %s; non-finite numbers read as unset (--strict stops instead)", NOT_STRICT, os.path.basename(path), ", ".join(found))
     if not isinstance(data, dict):
         raise ValueError("Slurm JSON response must be an object")
     meta = data.get("meta")
@@ -140,6 +149,69 @@ def read_response(path: str, key: str, options: Any = None) -> Tuple[str, List[D
     if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
         raise ValueError("Slurm JSON requires a %s list" % key)
     return version, rows
+
+
+class AllocationLayout(object):
+    """Where a job's per-node CPU allocations sit in data_parser v0.0.41 and later: job_resources.nodes.allocation."""
+
+    @staticmethod
+    def allocations(resources: Dict[str, Any]) -> Any:
+        """Return the per-node allocation list."""
+        return resources.get("nodes", {}).get("allocation")
+
+    @staticmethod
+    def total_cpus(resources: Dict[str, Any]) -> int:
+        """Return the job's allocated CPU total."""
+        return integer(resources.get("cpus"))
+
+    @staticmethod
+    def host(allocation: Dict[str, Any]) -> Any:
+        """Return the node name of one allocation."""
+        return allocation["name"]
+
+    @staticmethod
+    def cpu_count(allocation: Dict[str, Any], cpus: List[int]) -> int:
+        """Return the CPUs counted on one node; cpus are those its socket/core bitmap marks."""
+        return integer(allocation["cpus"]["count"])
+
+    @staticmethod
+    def fit_to_job(details: Dict[str, Tuple[List[int], int, bool]], job_cpus: int) -> None:
+        """Adjust the per-node details to the job's CPU total where the layout cannot say it exactly."""
+
+
+class LegacyAllocationLayout(AllocationLayout):
+    """data_parser v0.0.40: job_resources.allocated_nodes, counted from whole-core bitmaps."""
+
+    @staticmethod
+    def allocations(resources: Dict[str, Any]) -> Any:
+        """Return the per-node allocation list."""
+        return resources.get("allocated_nodes")
+
+    @staticmethod
+    def total_cpus(resources: Dict[str, Any]) -> int:
+        """Return the larger of the allocated CPU and core totals."""
+        return max(integer(resources.get("allocated_cpus"), 0), integer(resources.get("allocated_cores"), 0))
+
+    @staticmethod
+    def host(allocation: Dict[str, Any]) -> Any:
+        """Return the node name of one allocation."""
+        return allocation["nodename"]
+
+    @staticmethod
+    def cpu_count(allocation: Dict[str, Any], cpus: List[int]) -> int:
+        """Return the CPUs the bitmap marks: v0.0.40 reports no per-node count."""
+        return len(cpus)
+
+    @staticmethod
+    def fit_to_job(details: Dict[str, Tuple[List[int], int, bool]], job_cpus: int) -> None:
+        """A one-node job may use fewer CPUs than its whole-core bitmap marks: count the job's, estimated."""
+        if len(details) == 1 and job_cpus < sum(detail[1] for detail in details.values()):
+            host = next(iter(details))
+            details[host] = (details[host][0], job_cpus, False)
+
+
+# Supported data_parser versions whose allocation layout differs from AllocationLayout.
+ALLOCATION_LAYOUTS: "Final" = {"v0.0.40": LegacyAllocationLayout}
 
 
 class SlurmJSONBatchSystem(SlurmBatchSystem):
@@ -213,6 +285,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         if len(set(versions)) != 1:
             raise ValueError("Slurm JSON responses use different schema versions")
         self._version = versions[0]
+        self._layout = ALLOCATION_LAYOUTS.get(self._version, AllocationLayout)
         self._partitions: Dict[str, str] = {}
         for row in records["partitions"]:
             name = row["name"]
@@ -344,31 +417,28 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
             return  # unavailable detail is explicitly estimated by the legacy policy
         if not isinstance(resources, dict):
             raise ValueError("invalid Slurm job_resources")
-        allocations = resources.get("allocated_nodes") if self._version == "v0.0.40" else resources.get("nodes", {}).get("allocation")
+        allocations = self._layout.allocations(resources)
         if not isinstance(allocations, list):
             raise ValueError("missing Slurm per-node allocation list")
-        total = integer(resources.get("cpus")) if self._version != "v0.0.40" else max(integer(resources.get("allocated_cpus"), 0), integer(resources.get("allocated_cores"), 0))
+        total = self._layout.total_cpus(resources)
         if total:
-            job["CPUs"] = integer(total)
-        details = {}
+            job["CPUs"] = total
+        details: Dict[str, Tuple[List[int], int, bool]] = {}
         for allocation in allocations:
-            host = allocation["nodename" if self._version == "v0.0.40" else "name"]
+            host = self._layout.host(allocation)
             if host in details or host not in hosts:
                 raise ValueError("conflicting Slurm allocation node")
             node = self._topology.get(host)
             if node is None:
                 raise ValueError("Slurm allocation references missing node; try --all")
             cpus = self._cpu_ids(allocation, node)
-            count = len(cpus) if self._version == "v0.0.40" else integer(allocation["cpus"]["count"])
+            count = self._layout.cpu_count(allocation, cpus)
             if count > len(cpus):
                 raise ValueError("Slurm CPU count exceeds the reported allocation bitmap")
             if count > integer(node["cpus"]):
                 raise ValueError("Slurm per-node allocation exceeds capacity")
             details[host] = (cpus, count, bool(cpus) and count == len(cpus))
-        if self._version == "v0.0.40" and len(details) == 1 and job["CPUs"] < sum(detail[1] for detail in details.values()):
-            host = next(iter(details))
-            cpus = details[host][0]
-            details[host] = (cpus, job["CPUs"], False)
+        self._layout.fit_to_job(details, job["CPUs"])
         if set(details) != set(hosts) or sum(detail[1] for detail in details.values()) != job["CPUs"]:
             raise ValueError("Slurm per-node CPU allocation totals disagree")
         self._allocations[job["JobId"]] = details

@@ -32,8 +32,9 @@ class BackendOptions(object):
 
     SOURCEDIR: read traces from this directory instead of running commands. Any other keyword
     becomes an attribute: a backend's own switches, with the names its add_cli_options() gives
-    them (e.g. Slurm's ALL_PARTITIONS, SLURM_SUMMARY, SLURM_JSON_SQUEUE). Backends read those
-    with getattr and a default, so an option left out means the default.
+    them (e.g. Slurm's ALL_PARTITIONS, SLURM_SUMMARY, SLURM_JSON_SQUEUE), or STRICT (--strict),
+    the one qtop-wide switch a backend reads (slurm_json stops on non-strict JSON). Backends read
+    those with getattr and a default, so an option left out means the default.
     """
 
     def __init__(self, SOURCEDIR: Optional[str] = None, **backend_options: Any) -> None:
