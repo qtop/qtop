@@ -12,6 +12,7 @@ Notable changes by version, newest first. See the
 - Feature: slurm_json reads xjson complex/json6 tokens (NaN, -NaN, \xNN), warning once per run
 - Fix: bad scheduler command entries name their key; backend bugs no longer pass as config errors
 - Fix: htcondor rejects CPU counts over 65536 instead of hanging; oar names a bad resource ID
+- Fix: node cores outside 0..np-1 are rejected as bad input, not a display crash (PBS fuzzing)
 - Refactor: CLI options stay as parsed; REMAP is Cluster.remap, -A -L masks GECOS/groups on read
 - Refactor: modules log via getLogger(__name__); ruff LOG015 now forbids logging.info() & co.
 - Refactor: slurm_json keeps per-version allocation layouts in a table, not v0.0.40 conditionals

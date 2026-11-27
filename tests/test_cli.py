@@ -281,6 +281,16 @@ def non_strict_slurm_json(tmp_path):
     return str(source)
 
 
+def pbs_core_beyond_np(tmp_path):
+    """The contrib PBS traces with one node listing core 99 of its 8 cores."""
+    source = tmp_path / "pbs"
+    source.mkdir()
+    for name in ("pbsnodes_a.txt", "qstat.txt", "qstat_q.txt"):
+        text = (ROOT / "qtop_py/contrib" / name).read_text(encoding="utf-8")
+        write(source / name, text.replace("jobs = 0/", "jobs = 99/", 1) if name == "pbsnodes_a.txt" else text)
+    return str(source)
+
+
 MISSING_COMMAND = "savepath: %s\nschedulers:\n  slurm:\n    squeue_file: %%(savepath)s/squeue%%(pid)s.txt, qtop-missing-scheduler-command\n"
 
 # Each failure: arguments built in tmp_path, and the texts its one-line qtop: error must contain.
@@ -299,6 +309,7 @@ OPERATIONAL_FAILURES = {
     ),
     "malformed-xml": (lambda tmp: ["-b", "sge", "-s", os.path.dirname(write(tmp / "qstat.F.xml.stdout", "<unfinished"))], ["Cannot parse sge scheduler input"]),
     "log-directory": (lambda tmp: ["-b", "slurm"] + unusable_local_directory(tmp), [".local", "qtop: warning: cannot use log"]),
+    "pbs-core-beyond-np": (lambda tmp: ["-b", "pbs", "-s", pbs_core_beyond_np(tmp)], ["Cannot parse pbs scheduler input", "lists core '99', outside its 8 cores"]),
     "strict-slurm-json": (lambda tmp: ["--strict", "-b", "slurm_json", "-s", non_strict_slurm_json(tmp)], ["not strict RFC 8259 JSON", "found -NaN", "without --strict"]),
 }
 

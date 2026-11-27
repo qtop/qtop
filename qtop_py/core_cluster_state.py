@@ -77,6 +77,8 @@ def _record(value: object, label: str) -> Dict[str, object]:
 
 _CORE_KEY_TYPES = frozenset((int, str))
 _TEXT_TYPE = frozenset((str,))
+_CORE_INT_TYPE = frozenset((int,))
+_CORE_TEXT = re.compile(r"0|[1-9][0-9]*")  # str(int) of a core, as mvu_query reads it
 
 
 def _core_job_map_types_valid(cores: Dict[object, object]) -> bool:
@@ -86,6 +88,21 @@ def _core_job_map_types_valid(cores: Dict[object, object]) -> bool:
     if _CORE_KEY_TYPES.issuperset(map(type, cores)) and _TEXT_TYPE.issuperset(map(type, cores.values())):
         return True
     return all(isinstance(core, (str, int)) and isinstance(job, str) for core, job in cores.items())
+
+
+def _check_core_positions(name: object, np: int, cores: Dict[object, object]) -> None:
+    """Raise SchedulerInputError unless every core is 0..np-1, as an int or its decimal text, and listed once."""
+    if not cores:
+        return
+    if _CORE_INT_TYPE.issuperset(map(type, cores)):  # fast path: distinct int keys need only a range check
+        if min(cast(Dict[int, object], cores)) >= 0 and max(cast(Dict[int, object], cores)) < np:
+            return
+    seen = set()
+    for core in cores:
+        position = core if type(core) is int else int(core) if isinstance(core, str) and _CORE_TEXT.fullmatch(core) else -1
+        if not 0 <= position < np or position in seen:
+            raise SchedulerInputError("node %s lists core %r, outside its %d cores or repeated" % (name, core, np))
+        seen.add(position)
 
 
 def _schema_version(data: Dict[str, object]) -> int:
@@ -189,6 +206,7 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
                     raise TypeError("node qname must be a list of strings or nulls")
                 if not isinstance(cores, dict) or not _core_job_map_types_valid(cast(Dict[object, object], cores)):
                     raise TypeError("node core_job_map must map integer/string cores to string job IDs")
+                _check_core_positions(record.get("domainname"), int(np), cast(Dict[object, object], cores))
             elif key == "queues":
                 for field in ("running", "queued"):
                     count = record.get(field)
