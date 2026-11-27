@@ -181,3 +181,16 @@ def test_detection_only_considers_explicit_registered_backends(monkeypatch, nati
 def test_slurm_placement_message_severity(nodes, levels):
     messages = qtop.scheduler_backend("slurm").display_messages("placement", SimpleNamespace(), nodes, {})
     assert [message.split(":", 1)[0] for message in messages] == levels
+
+
+@pytest.mark.parametrize(
+    "sample, anonymize, load_sample, expected",
+    [(0, False, None, True), (1, False, None, True), (0, True, None, True), (1, True, None, False), (1, True, "replay.tar", True)],
+    ids=["plain", "sample", "anonymize", "masked-sample", "replayed-sample"],
+)
+def test_user_detail_options_are_off_only_while_saving_a_masked_sample(sample, anonymize, load_sample, expected):
+    options = SimpleNamespace(GET_GECOS=True, SHOW_GROUPS=True, SAMPLE=sample, ANONYMIZE=anonymize, load_sample=load_sample)
+    assert user_details.user_detail_option(options, "GET_GECOS") is expected
+    assert user_details.user_detail_option(options, "SHOW_GROUPS") is expected
+    assert options.GET_GECOS is options.SHOW_GROUPS is True  # derived, never written back
+    assert user_details.user_detail_option(SimpleNamespace(), "SHOW_GROUPS") is False

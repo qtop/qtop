@@ -307,7 +307,7 @@ class WNOccupancy(object):
         # Extra matrices may be needed if the WNs are more than the screen width can hold.
         if wn_number > start:  # start will either be 1 or (masked >= config['min_masking_threshold'] + 1)
             extra_matrices_nr = int(ceil(abs(wn_number - start) / float(term_columns - DEADWEIGHT))) - 1
-        elif self.MVU_model.args.REMAP:  # was: ***wn_number < start*** and len(cluster.node_name_prefixes) > 1:  # Remapping
+        elif self.cluster.remap:  # was: ***wn_number < start*** and len(cluster.node_name_prefixes) > 1:  # Remapping
             extra_matrices_nr = int(ceil(wn_number / float(term_columns - DEADWEIGHT))) - 1
         else:
             extra_matrices_nr = 0
@@ -687,6 +687,7 @@ class Cluster(object):
         self.core_span: List[str] = []
         self.highest_wn = 0
         self.workernode_dict: Dict[Any, Dict[str, Any]] = {}
+        self.remap = False  # decided by analyse(): node numbers are replaced by their order
 
         self.available_wn = sum([len(node["state"]) for node in self.worker_nodes if str(node["state"][0]) == "-"])
         self.total_wn = len(self.worker_nodes)  # == existing_nodes
@@ -709,13 +710,13 @@ class Cluster(object):
         )
 
         self.core_span = [str(x) for x in range(max_np)]
-        self.args.REMAP = self.decide_remapping(_all_str_digits_with_empties, node_name_prefixes)
+        self.remap = self.decide_remapping(_all_str_digits_with_empties, node_name_prefixes)
 
         remapped_node_numbers = range(1, self.total_wn + 1)
-        nodes_drop, workernode_dict, remapped_nodes = self.map_worker_nodes_to_wn_dict(self.args.REMAP)
+        nodes_drop, workernode_dict, remapped_nodes = self.map_worker_nodes_to_wn_dict(self.remap)
         self.workernode_dict = workernode_dict
 
-        if self.args.REMAP:
+        if self.remap:
             self.total_wn += nodes_drop
             self.highest_wn = self.total_wn
 

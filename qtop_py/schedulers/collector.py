@@ -105,8 +105,6 @@ def MVU_collect_snapshot(
             config, omitted = sample.sanitize_config(config, mappings)
             snapshot_config = copy.deepcopy(config)
             config["savepath"] = savepath
-            args.GET_GECOS = False
-            args.SHOW_GROUPS = False
             if archive is None:
                 raise OperationalError("Support archive was not initialized.")
             sample.save_snapshot(archive, cluster_state, snapshot_config, args, scheduler, __version__, omitted)

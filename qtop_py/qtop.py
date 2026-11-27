@@ -144,11 +144,10 @@ def check_python_version() -> None:
 
 
 def process_args(args: Any) -> Tuple[Any, int]:
-    """Resolve -c AUTO and the remap and names options; return the options and NAMED_WNS."""
+    """Resolve -c AUTO and the names option; return the options and NAMED_WNS."""
     if args.COLOR == "AUTO":
         args.COLOR = "ON" if (os.environ.get("QTOP_COLOR", sys.stdout.isatty()) in ("ON", True)) else "OFF"
     logger.debug("args.COLOR is now set to: %s", args.COLOR)
-    args.REMAP = False  # Default value
     NAMED_WNS = 1 if args.FORCE_NAMES else 0
     return args, NAMED_WNS
 

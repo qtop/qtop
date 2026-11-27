@@ -10,6 +10,7 @@ Notable changes by version, newest first. See the
 - Feature: --strict replaces --demanding (kept as an alias) and also stops on non-strict Slurm JSON
 - Feature: slurm_json reads xjson complex/json6 tokens (NaN, -NaN, \xNN), warning once per run
 - Fix: bad scheduler command entries name their key; backend bugs no longer pass as config errors
+- Refactor: CLI options stay as parsed; REMAP is Cluster.remap, -A -L masks GECOS/groups on read
 - Refactor: modules log via getLogger(__name__); ruff LOG015 now forbids logging.info() & co.
 - Refactor: slurm_json keeps per-version allocation layouts in a table, not v0.0.40 conditionals
 - Refactor: core_warnings.first_time() replaces the per-module warned-once sets; tests reset it

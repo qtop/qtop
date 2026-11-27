@@ -15,12 +15,12 @@ from qtop_py.plugins.pbs import PBSStatExtractor
 
 def test_find_matrices_width_handles_empty_worker_nodes():
     occupancy = WNOccupancy.__new__(WNOccupancy)
-    occupancy.cluster = SimpleNamespace(highest_wn=0, workernode_list=[])
+    occupancy.cluster = SimpleNamespace(highest_wn=0, workernode_list=[], remap=False)
     occupancy.config = {
         "workernodes_matrix": [{"wn id lines": {"min_masking_threshold": 30}}],
         "USER_CUT_MATRIX_WIDTH": None,
     }
-    occupancy.MVU_model = MVU_Model(occupancy.config, SimpleNamespace(NOMASKING=False, REMAP=False), SimpleNamespace(h_term_size=80))
+    occupancy.MVU_model = MVU_Model(occupancy.config, SimpleNamespace(NOMASKING=False), SimpleNamespace(h_term_size=80))
 
     assert occupancy.find_matrices_width() == (0, 0, 0)
 

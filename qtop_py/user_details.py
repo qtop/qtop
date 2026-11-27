@@ -18,6 +18,12 @@ from qtop_py.input_parsing import extract_regex_detail
 logger = logging.getLogger(__name__)
 
 
+def user_detail_option(args: Any, name: str) -> bool:
+    """Whether GET_GECOS or SHOW_GROUPS is on; never while saving an anonymized sample (-A -L), which must hold no real names."""
+    masked_sample = getattr(args, "SAMPLE", False) and getattr(args, "ANONYMIZE", False) and not getattr(args, "load_sample", None)
+    return bool(getattr(args, name, False)) and not masked_sample
+
+
 def MVU_resolve_user_details(model: Any, occupancy: Any, force: bool = False) -> None:
     """Load user full names into the model, only if the accounts table is shown (or force is set)."""
     parts = model.config.get("user_display_parts", [])
@@ -29,7 +35,7 @@ def MVU_resolve_user_details(model: Any, occupancy: Any, force: bool = False) ->
         return
     model.user_details = {
         "names": get_detail_of_name(occupancy.account_jobs_table, model.config, model.args),
-        "groups": get_primary_group_names(occupancy.account_jobs_table) if getattr(model.args, "SHOW_GROUPS", False) else None,
+        "groups": get_primary_group_names(occupancy.account_jobs_table) if user_detail_option(model.args, "SHOW_GROUPS") else None,
     }
 
 
@@ -43,18 +49,19 @@ def get_detail_of_name(account_jobs_table: Sequence[Sequence[Any]], config: Dict
     field_idx = int(extract_info.get("field_to_use", 5))
     regex = extract_info.get("regex", None)
 
-    command_key = "user_details_realtime" if args.GET_GECOS else "user_details_cache"
+    realtime = user_detail_option(args, "GET_GECOS")
+    command_key = "user_details_realtime" if realtime else "user_details_cache"
     command = extract_info.get(command_key)
     if not isinstance(command, str) or not command.strip():
         logger.warning("No valid %s command in %s; skipping user details.", command_key, QTOPCONF_YAML)
         return {}
 
     try:
-        if args.GET_GECOS:
+        if realtime:
             users = " ".join(shlex.quote(str(line[4])) for line in account_jobs_table if line[4] != "Totals")
             command = command % users
         user_details_command = shlex.split(command)
-        if not args.GET_GECOS:
+        if not realtime:
             user_details_command[-1] = os.path.expandvars(user_details_command[-1])
         timeout = positive_timeout(config.get("scheduler_command_timeout", DEFAULT_SCHEDULER_COMMAND_TIMEOUT))
         p = start_command(user_details_command, os.environ)
