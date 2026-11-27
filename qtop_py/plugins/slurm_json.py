@@ -2,7 +2,9 @@
 ## SPDX-License-Identifier: MIT
 """Versioned Slurm JSON input using the existing Slurm accounting and GRES rules."""
 
+import logging
 import os
+import re
 import shlex
 from collections import Counter
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
@@ -13,7 +15,7 @@ from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor, slurm_ac
 from qtop_py.schedulers.gpu import parse_accelerator_gres
 
 if TYPE_CHECKING:
-    from typing import Final
+    from typing import Final, NoReturn
 
     from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import ClusterState, Config, Options
@@ -33,6 +35,12 @@ JOB_FLAG_PRIORITY: "Final" = (
     "SIGNALING",
 )
 SUPPORTED_PARSERS: "Final" = ("v0.0.40", "v0.0.41", "v0.0.42", "v0.0.43", "v0.0.44", "v0.0.45", "v0.0.46")
+# Slurm 26.11 serializer/xjson with SerializerParameters=complex or json6 writes JSON5-style tokens:
+# bare NaN/-NaN/Infinity/-Infinity numbers and \xNN string escapes. _NON_STRICT_TOKENS matches a
+# whole string literal (to rewrite its escapes) or a -NaN outside one.
+NOT_STRICT: "Final" = "Slurm JSON is not strict RFC 8259 JSON (serializer/xjson SerializerParameters=complex or json6?)"
+_NON_STRICT_TOKENS: "Final" = re.compile(r'"(?:[^"\\]|\\.)*"|-NaN')
+_ESCAPES: "Final" = re.compile(r"\\(x[0-9A-Fa-f]{2}|.)")
 
 
 class UnsupportedSlurmJSON(ValueError):
@@ -71,10 +79,50 @@ def unique_fields(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
     return fields
 
 
+def refuse_non_strict(found: str) -> "NoReturn":
+    """Stop on a serializer/xjson complex/json6 token under --strict."""
+    raise ValueError("%s: found %s; remove those parameters, or run without --strict to read it with a warning" % (NOT_STRICT, found))
+
+
+def lenient_json(text: str) -> str:
+    r"""Return text with -NaN read as NaN and \xNN escapes as \u00NN; strings are otherwise unchanged."""
+
+    def token(match: "re.Match[str]") -> str:
+        value = match.group(0)
+        if value == "-NaN":
+            return "NaN"
+        return _ESCAPES.sub(lambda escape: "\\u00" + escape.group(1)[1:] if escape.group(1)[0] == "x" else escape.group(0), value)
+
+    return _NON_STRICT_TOKENS.sub(token, text)
+
+
 def read_response(path: str, key: str, options: Any = None) -> Tuple[str, List[Dict[str, Any]]]:
-    """Reject unknown schemas, error responses and malformed record lists."""
+    """Reject unknown schemas, error responses and malformed record lists.
+
+    Non-finite numbers are read as unset (null), as serializer/xjson writes them by default. Its
+    complex/json6 tokens are read with one warning per response, or rejected with --strict.
+    """
+    strict = bool(getattr(options, "STRICT", False))
+    relaxed: List[str] = []
+
+    def constant(name: str) -> None:
+        if strict:
+            refuse_non_strict(name)
+        relaxed.append(name)
+
+    def repair(text: str) -> str:
+        repaired = lenient_json(text)
+        if repaired != text:
+            if strict:
+                refuse_non_strict("-NaN or \\x escapes")
+            relaxed.append("-NaN or \\x escapes")
+        return repaired
+
     with open_input(path, encoding="utf-8", options=options) as stream:
-        data = safety.load_json(stream, object_pairs_hook=unique_fields)
+        data = safety.load_json(stream, object_pairs_hook=unique_fields, parse_constant=constant, repair=repair)
+    if relaxed:
+        found = ", ".join(sorted(set(relaxed)))
+        logging.getLogger(__name__).warning("%s in %s: found %s; non-finite numbers read as unset (--strict stops instead)", NOT_STRICT, os.path.basename(path), found)
     if not isinstance(data, dict):
         raise ValueError("Slurm JSON response must be an object")
     meta = data.get("meta")

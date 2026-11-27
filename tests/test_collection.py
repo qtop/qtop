@@ -473,13 +473,13 @@ def test_a_failed_optional_command_is_dropped_while_the_rest_complete(tmp_path):
     assert sorted(files) == ["sinfo_file", "squeue_file"]
 
 
-@pytest.mark.parametrize("demanding", (False, True), ids=("default", "demanding"))
-def test_live_state_is_validated_once_unless_demanding(frame_context, monkeypatch, demanding):
+@pytest.mark.parametrize("strict", (False, True), ids=("default", "strict"))
+def test_live_state_is_validated_once_unless_strict(frame_context, monkeypatch, strict):
     from qtop_py import core_cluster_state as cluster_state
     from qtop_py import core_collect, snapshot
 
     frame, args, _config, _resources = frame_context
-    args.DEMANDING = demanding
+    args.STRICT = strict
 
     def execute(commands, filenames, key, savepath, **kwargs):
         Path(filenames[key]).write_bytes((SAMPLES / ("slurm_" + key[:-5] + ".json")).read_bytes())
@@ -497,4 +497,4 @@ def test_live_state_is_validated_once_unless_demanding(frame_context, monkeypatc
     monkeypatch.setattr(core_collect, "validate_cluster_state", counting_validate)  # core_api.collect()
     monkeypatch.setattr(snapshot, "validate_cluster_state", counting_validate)
     frame()
-    assert len(calls) == (2 if demanding else 1)
+    assert len(calls) == (2 if strict else 1)

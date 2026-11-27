@@ -538,7 +538,7 @@ directory, or under ``$QTOP_FALLBACK_DIR`` when that is set. The persistent
 diagnostic log remains under ``~/.local/qtop/logs/`` and falls back the same
 way; if no log location works, qtop runs without a log file. The fallback goes
 through the same private-directory checks; ``--strict-parents`` (or
-``--demanding``) stops with the original error instead. Input files remain where
+``--strict``) stops with the original error instead. Input files remain where
 supplied; this setting does not relocate the log or Python bytecode.
 
 The ``savepath`` expands environment variables and is created with permissions
@@ -1245,10 +1245,14 @@ can be made stricter, one at a time or all at once:
    tightened to mode 0700 and never followed through symbolic links. It also
    disables the best-effort ``/dev/shm`` fallback for ``savepath`` and the log.
 -  Live collection validates each cluster state once, in its collection
-   thread. ``--demanding`` validates it again when the snapshot is built.
+   thread. ``--strict`` validates it again when the snapshot is built.
+-  ``-b slurm_json`` reads non-strict JSON (Slurm 26.11 ``serializer/xjson``
+   with ``SerializerParameters=complex`` or ``json6``) with a warning;
+   ``--strict`` stops instead. See the Slurm JSON backend below.
 
-``--demanding`` turns on all three. It costs about half a second per frame on a
-cluster of several thousand nodes, mostly from the second validation.
+``--strict`` turns on all four; ``--demanding`` is its former name and still
+works. It costs about half a second per frame on a cluster of several thousand
+nodes, mostly from the second validation.
 
 ### Experimental features
 
@@ -1596,6 +1600,16 @@ Duplicate JSON keys, conflicting identities, missing or inconsistent per-node
 allocations, invalid GPU indices and out-of-budget topology are rejected.
 Overlapping or over-capacity CPU allocations cannot fit the existing single-job
 CPU map and are rejected rather than silently dropping assignments.
+
+Slurm 26.11 adds `serializer/xjson`, which a site selects with
+`SerializerPlugins` in `slurm.conf`; `scontrol --json` then uses it with the same
+data-parser schema, so `-b slurm_json` reads it unchanged: exponent floats,
+`null` for non-finite numbers (read as unset) and U+FFFD for unsupported code
+points. Its `SerializerParameters=complex` (bare `NaN`, `-NaN`, `Infinity`) and
+`json6` (`\xNN` string escapes) output is not strict RFC 8259 JSON, so it is not
+supported: qtop reads such tokens as unset numbers and escaped characters, with
+one warning per response, and `--strict` stops with an error naming those
+parameters instead.
 
 Socket/core bitmaps are expanded to Slurm abstract CPU IDs using reported node
 SMT topology and compared with per-node allocation counts. Exact full-core

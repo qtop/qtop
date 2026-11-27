@@ -5,6 +5,10 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261126
 
+- Docs: documentation.md and qtop.1 cover Slurm 26.11 serializer/xjson and --strict for slurm_json
+- Feature: --strict replaces --demanding (kept as an alias) and also stops on non-strict Slurm JSON
+- Feature: slurm_json reads xjson complex/json6 tokens (NaN, -NaN, \xNN) with a warning, not a crash
+- Tests: slurm_json covers xjson-shaped responses, lenient vs --strict tokens and a CLI failure row
 - Release: update version metadata to 0.9.20261126
 
 ## 0.9.20261125

@@ -271,6 +271,16 @@ def unusable_local_directory(tmp_path):
     return []
 
 
+def non_strict_slurm_json(tmp_path):
+    """The v0.0.43 slurm_json sample with one SerializerParameters=complex token, -NaN."""
+    source = tmp_path / "xjson"
+    source.mkdir()
+    for path in (ROOT / "tests/plugins/slurm_json_samples/v0.0.43").glob("*.json"):
+        text = path.read_text(encoding="utf-8")
+        write(source / path.name, text.replace('"cpus": ', '"cpu_load": -NaN, "cpus": ', 1) if path.name == "slurm_nodes.json" else text)
+    return str(source)
+
+
 MISSING_COMMAND = "savepath: %s\nschedulers:\n  slurm:\n    squeue_file: %%(savepath)s/squeue%%(pid)s.txt, qtop-missing-scheduler-command\n"
 
 # Each failure: arguments built in tmp_path, and the texts its one-line qtop: error must contain.
@@ -289,6 +299,7 @@ OPERATIONAL_FAILURES = {
     ),
     "malformed-xml": (lambda tmp: ["-b", "sge", "-s", os.path.dirname(write(tmp / "qstat.F.xml.stdout", "<unfinished"))], ["Cannot parse sge scheduler input"]),
     "log-directory": (lambda tmp: ["-b", "slurm"] + unusable_local_directory(tmp), [".local", "qtop: warning: cannot use log"]),
+    "strict-slurm-json": (lambda tmp: ["--strict", "-b", "slurm_json", "-s", non_strict_slurm_json(tmp)], ["not strict RFC 8259 JSON", "found -NaN", "without --strict"]),
 }
 
 
@@ -1219,22 +1230,22 @@ def test_account_totals_count_distinct_nodes_not_the_per_user_sum(tmp_path):
     assert max(map(int, users)) <= total <= up < sum(map(int, users))
 
 
-def test_demanding_turns_on_strict_parents_and_strict_check(tmp_path):
+def test_strict_turns_on_strict_parents_and_strict_check(tmp_path):
     shared = tmp_path / "shared"
     shared.mkdir()
     shared.chmod(0o775)
-    refused = run_cli(tmp_path, "qtop_py.qtop", "--demanding", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % (shared / "out"))
+    refused = run_cli(tmp_path, "qtop_py.qtop", "--strict", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % (shared / "out"))
     assert refused.returncode != 0
     assert "untrusted parent" in refused.stderr
     checked = run_cli(tmp_path, "qtop_py.qtop", "--demanding", "-b", "demo", "-c", "OFF", "-o", "savepath=%s" % (tmp_path / "out"))
     assert checked.returncode == 0, checked.stderr
 
 
-@pytest.mark.parametrize("argv, strict", ((["-b", "demo"], False), (["--demanding", "-b", "demo"], True)))
-def test_demanding_expands_to_the_strict_flags(monkeypatch, argv, strict):
+@pytest.mark.parametrize("argv, strict", ((["-b", "demo"], False), (["--strict", "-b", "demo"], True), (["--demanding", "-b", "demo"], True)))
+def test_strict_expands_to_the_strict_flags(monkeypatch, argv, strict):
     from qtop_py import qtop, utils
 
     monkeypatch.setattr(sys, "argv", ["qtop"] + argv)
     args = utils.parse_qtop_cmdline_args()
-    qtop.apply_demanding(args)
-    assert (args.STRICTCHECK, args.STRICT_PARENTS) == (strict, strict)
+    qtop.apply_strict(args)
+    assert (args.STRICT, args.STRICTCHECK, args.STRICT_PARENTS) == (strict, strict, strict)

@@ -116,8 +116,8 @@ def MVU_collect_snapshot(
         raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
     if getattr(args, "ANONYMIZE", False) and not args.SAMPLE and not args.load_sample:  # -A: masked once, after the state is built
         cluster_state = sample.anonymize_state(cluster_state)[0]
-    # core_api.collect() already validated the state (unless -A replaced it); --demanding validates it again here.
-    prevalidated = built is not None and cluster_state is built.state and not getattr(args, "DEMANDING", False)
+    # core_api.collect() already validated the state (unless -A replaced it); --strict validates it again here.
+    prevalidated = built is not None and cluster_state is built.state and not getattr(args, "STRICT", False)
     collection = None if collected is None else (max(0, time.monotonic() - collected.completed), collected.completed - collected.started, collection_error)
     snapshot = Snapshot.from_cluster_state(cluster_state, validated=prevalidated, display_state=getattr(backend, "display_job_state", None), collection=collection)
     return snapshot, config
