@@ -3,6 +3,10 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261125
+
+- Release: update version metadata to 0.9.20261125
+
 ## 0.9.20261124
 
 - Bugfix: tools/prepare_release.py writes no ## Unreleased heading, as the changelog keeps none
