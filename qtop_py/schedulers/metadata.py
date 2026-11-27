@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Mapping, NamedTuple, Opti
 if TYPE_CHECKING:
     from qtop_py.core_state_types import Job, Node
 
+from qtop_py.core_errors import SchedulerInputError
 from qtop_py.schedulers.extensions import ExtensionSpec, validate_identities, validate_text_lists
 
 Extensions = NamedTuple(
@@ -60,7 +61,7 @@ def validate_diagnostics(data: Dict[str, object]) -> None:
         if not isinstance(diagnostics, dict) or not all(isinstance(key, str) for key in diagnostics):
             raise TypeError("%s diagnostics must be an object with string keys" % label)
         if any(key not in keys or type(count) is not int or count < 0 for key, count in diagnostics.items()):
-            raise ValueError(label + " diagnostics require known counters with nonnegative integer values")
+            raise SchedulerInputError(label + " diagnostics require known counters with nonnegative integer values")
 
 
 def validate_record_extensions(kind: str, record: Dict[str, object]) -> None:

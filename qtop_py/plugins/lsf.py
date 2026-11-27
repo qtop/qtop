@@ -7,7 +7,7 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Tuple
 
-from qtop_py.core_api import GenericBatchSystem, open_input
+from qtop_py.core_api import GenericBatchSystem, SchedulerInputError, open_input
 
 if TYPE_CHECKING:
     from typing import Final
@@ -50,7 +50,7 @@ def parse_exec_host(value: str) -> "OrderedDict[str, int]":
     for token in value.split(":"):
         match = EXEC_SLOT.fullmatch(token)
         if not match:
-            raise ValueError("Cannot parse LSF EXEC_HOST: %s" % value)
+            raise SchedulerInputError("Cannot parse LSF EXEC_HOST: %s" % value)
         slots[match.group(2)] = slots.get(match.group(2), 0) + int(match.group(1) or 1)
     return slots
 
@@ -144,7 +144,7 @@ class LSFBatchSystem(GenericBatchSystem):
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:
         """Return the masked name and text of a bhosts, bqueues or bjobs trace."""
         if key not in TRACE_NAMES:
-            raise ValueError("unsupported trace")
+            raise SchedulerInputError("unsupported trace")
         lines = text.splitlines()
         rows = lines[:1]
         for line in lines[1:]:
@@ -154,7 +154,7 @@ class LSFBatchSystem(GenericBatchSystem):
             if key == "bjobs_file":
                 fields = line.split("|")
                 if len(fields) != len(lines[0].split("|")):
-                    raise ValueError("unsupported job row")
+                    raise SchedulerInputError("unsupported job row")
                 columns = dict(zip(lines[0].strip().split("|"), range(len(fields))))
                 for column, kind in (("JOBID", "job"), ("USER", "user"), ("QUEUE", "queue")):
                     fields[columns[column]] = mask(fields[columns[column]], kind)
@@ -167,7 +167,7 @@ class LSFBatchSystem(GenericBatchSystem):
             else:
                 fields = line.split()
                 if len(fields) != len(lines[0].split()):
-                    raise ValueError("unsupported %s row" % ("host" if key == "bhosts_file" else "queue"))
+                    raise SchedulerInputError("unsupported %s row" % ("host" if key == "bhosts_file" else "queue"))
                 fields[0] = mask(fields[0], "node" if key == "bhosts_file" else "queue")
                 status = 1 if key == "bhosts_file" else 2
                 fields[status] = mask.public(fields[status], r"ok|closed_\w+|unavail|unreach|unlicensed" if status == 1 else r"(?:Open|Closed):(?:Active|Inact)")
@@ -190,15 +190,15 @@ class LSFBatchSystem(GenericBatchSystem):
         header = lines[0].strip().split("|")
         missing = [column for column in BJOBS_COLUMNS if column not in header]
         if missing:
-            raise ValueError("bjobs output lacks columns %s; use the -o format in qtopconf.yaml" % ", ".join(missing))
+            raise SchedulerInputError("bjobs output lacks columns %s; use the -o format in qtopconf.yaml" % ", ".join(missing))
         for line in lines[1:]:
             fields = line.strip().split("|")
             if len(fields) != len(header):
-                raise ValueError("Cannot parse LSF job row: %s" % line.strip())
+                raise SchedulerInputError("Cannot parse LSF job row: %s" % line.strip())
             row = dict(zip(header, fields))
             index = row.get("JOBINDEX", "0")
             if not re.fullmatch(r"[0-9]+", row["JOBID"]) or not re.fullmatch(r"[0-9]+", index):
-                raise ValueError("Invalid LSF job ID: %s" % line.strip())
+                raise SchedulerInputError("Invalid LSF job ID: %s" % line.strip())
             slots = parse_exec_host(row["EXEC_HOST"])
             jobs.append(
                 {
@@ -216,10 +216,10 @@ class LSFBatchSystem(GenericBatchSystem):
         with open_input(path, "r", encoding="utf-8", errors="replace", options=self.options) as stream:
             lines = [line.split() for line in stream if line.strip()]
         if not lines or lines[0][0] != first_column:
-            raise ValueError("LSF table %s does not start with a %s header" % (path, first_column))
+            raise SchedulerInputError("LSF table %s does not start with a %s header" % (path, first_column))
         rows = []
         for fields in lines[1:]:
             if len(fields) != len(lines[0]):
-                raise ValueError("Cannot parse LSF row in %s: %s" % (path, " ".join(fields)))
+                raise SchedulerInputError("Cannot parse LSF row in %s: %s" % (path, " ".join(fields)))
             rows.append(dict(zip(lines[0], fields)))
         return rows

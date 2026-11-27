@@ -155,7 +155,7 @@ def _private_directory(path: str, strict: bool = False) -> Generator[Tuple[str, 
             elif writable_by_others and not info.st_mode & stat.S_ISVTX:
                 if strict:
                     raise PermissionError(errno.EACCES, "Save directory has an untrusted parent (writable without sticky bit; --strict-parents)", parent)
-                logging.getLogger(__name__).info("Save directory parent %s is writable by others without sticky bit; continuing (see --strict-parents)", parent)
+                logger.info("Save directory parent %s is writable by others without sticky bit; continuing (see --strict-parents)", parent)
         yield path, fd
     finally:
         os.close(fd)
@@ -202,7 +202,7 @@ def _warn_fallback(what: str, path: str, error: OSError, fallback: str) -> None:
     message = visible_text("warning: cannot use %s %s: %s; using %s instead (best effort; --strict-parents stops instead)" % (what, path, reason, fallback))
     sys.stderr.write("qtop: %s\n" % message)
     if logging.getLogger().handlers:  # before init_logging, Python's last-resort handler would repeat it
-        logging.getLogger(__name__).warning("%s", message)
+        logger.warning("%s", message)
 
 
 def with_fallback(what: str, path: str, attempt: Callable[[str], _T], leaf: str = "", strict: bool = False) -> _T:

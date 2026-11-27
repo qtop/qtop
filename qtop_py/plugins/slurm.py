@@ -14,7 +14,7 @@ import re
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Match, Optional, Sequence, Set, Tuple, cast
 
-from qtop_py.core_api import FileEmptyError, GenericBatchSystem, StatExtractor, check_empty_file, open_input
+from qtop_py.core_api import FileEmptyError, GenericBatchSystem, SchedulerInputError, StatExtractor, check_empty_file, open_input
 from qtop_py.core_hostlist import HostlistParser
 from qtop_py.plugins.slurm_extension import SLURM_EXTENSION
 from qtop_py.schedulers.gpu import ACCELERATOR_KINDS, parse_accelerator_gres
@@ -73,7 +73,7 @@ def slurm_accounting_state(state: str) -> str:
     return "running" if state == "R" else "queued" if state in SLURM_QUEUED_STATES else "other"
 
 
-class SlurmArrayIdError(ValueError):
+class SlurmArrayIdError(SchedulerInputError):
     """An array task range that cannot be expanded: malformed, truncated or too large."""
 
 
@@ -113,15 +113,15 @@ class SlurmStatExtractor(StatExtractor):
         """Prefer explicit array fields; retain formatted-ID support for old traces."""
         if array_task_id.upper() in ("", "N/A", "(NULL)"):
             if array_task_id and re.match(r"[0-9]+_", job_id):
-                raise ValueError("Conflicting Slurm array identity for job %s" % job_id)
+                raise SchedulerInputError("Conflicting Slurm array identity for job %s" % job_id)
             return cls.expand_job_id(job_id)
         if not re.fullmatch(r"[0-9]{1,10}", array_job_id) or "+" in job_id:
-            raise ValueError("Invalid or conflicting Slurm array identity for job %s" % job_id)
+            raise SchedulerInputError("Invalid or conflicting Slurm array identity for job %s" % job_id)
         ids = cls.expand_job_id("%s_[%s]" % (array_job_id, array_task_id))
         scalar = re.fullmatch(r"[0-9]+_[0-9]+", job_id)
         group = re.match(r"([0-9]+)_\[", job_id)
         if (scalar and ids != [job_id]) or (group and group.group(1) != array_job_id):
-            raise ValueError("Conflicting Slurm array identity for job %s" % job_id)
+            raise SchedulerInputError("Conflicting Slurm array identity for job %s" % job_id)
         return ids
 
     @staticmethod
@@ -192,7 +192,7 @@ class SlurmStatExtractor(StatExtractor):
                 if "_[" in job_id or len(task_ids) > 1:
                     expanded_count += len(task_ids)
                     if expanded_count > self.MAX_EXPANDED_TASKS:
-                        raise ValueError("Too many grouped Slurm array tasks; collect squeue with -r/--array.")
+                        raise SchedulerInputError("Too many grouped Slurm array tasks; collect squeue with -r/--array.")
                 if state not in states:
                     mapped = self._map_job_state(state)
                     states[state] = (mapped, slurm_accounting_state(mapped))
@@ -222,7 +222,7 @@ class SlurmStatExtractor(StatExtractor):
                         if job["S"] in SLURM_QUEUED_STATES and {key: value for key, value in previous.items() if key not in ignored} == comparable:
                             previous["slurm_partitions"] = list(OrderedDict.fromkeys(previous["slurm_partitions"] + list(partitions_seen)))
                             continue
-                        raise ValueError("Conflicting Slurm records for job %s; collect a fresh squeue trace with -r/--array." % task_id)
+                        raise SchedulerInputError("Conflicting Slurm records for job %s; collect a fresh squeue trace with -r/--array." % task_id)
                     jobs[task_id] = job
         return list(jobs.values())
 
@@ -247,10 +247,10 @@ class SlurmStatExtractor(StatExtractor):
                 try:
                     fields = [field.strip() for field in line.split("|")]
                     if len(fields) not in (4, 5, 6, 7):
-                        raise ValueError("expected 4/6 node fields with optional partition availability")
+                        raise SchedulerInputError("expected 4/6 node fields with optional partition availability")
                     node_name, partition, state, cpus = fields[:4]
                     if not all((node_name, partition.rstrip("*"))):
-                        raise ValueError("missing required node field")
+                        raise SchedulerInputError("missing required node field")
                 except ValueError:
                     self.rejected_sinfo_rows += 1
                     logger.warning("Line: %s not properly parsed as Slurm sinfo output.", line)
@@ -633,11 +633,11 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         for line in text.splitlines():
             match = TOPOLOGY_BLOCK_RE.fullmatch(line.strip())
             if match is None:
-                raise ValueError("unsupported topology line")
+                raise SchedulerInputError("unsupported topology line")
             label, block, index, hosts, size = match.groups()
             expanded = self.expand_nodelist(hosts)
             if hosts and not expanded:
-                raise ValueError("invalid topology node list")
+                raise SchedulerInputError("invalid topology node list")
             nodes = " Nodes=" + ",".join(mask(host, "node") for host in expanded) if hosts else ""
             rows.append("%s=%s BlockIndex=%s%s BlockSize=%s" % (label, mask(block, "block"), index, nodes, size))
         return "\n".join(rows) + "\n"
@@ -661,10 +661,10 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 return name + "=" + value
 
             if re.sub(r"(?<!\S)\S[^\s=]*=\S*", "", text).strip():
-                raise ValueError("unsupported detail syntax")
+                raise SchedulerInputError("unsupported detail syntax")
             return "scontrol.txt", re.sub(r"(?<!\S)(\S[^\s=]*)=(\S*)", field, text)
         if key not in ("squeue_file", "sinfo_file"):
-            raise ValueError("unsupported trace")
+            raise SchedulerInputError("unsupported trace")
         rows = []
         for line in text.splitlines():
             if not line.strip():
@@ -673,7 +673,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             fields = [part.strip() for part in line.split("|")]
             if key == "squeue_file":
                 if len(fields) not in (6, 9, 11):
-                    raise ValueError("unsupported job row")
+                    raise SchedulerInputError("unsupported job row")
                 fields[0], fields[1] = mask(fields[0], "job"), mask(fields[1], "user")
                 fields[2] = mask.public(fields[2], "(?:" + "|".join(SLURM_COMPACT_JOB_STATES) + ")")
                 fields[3] = ",".join(mask(part.rstrip("*"), "queue") + ("*" if part.endswith("*") else "") for part in fields[3].split(","))
@@ -686,7 +686,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                     fields[10] = mask.public(fields[10], r"(?:[0-9]+|N/A)?")
             else:
                 if len(fields) not in (4, 5, 6, 7):
-                    raise ValueError("unsupported node row")
+                    raise SchedulerInputError("unsupported node row")
                 fields[0] = mask(fields[0], "node")
                 fields[1] = mask(fields[1].rstrip("*"), "queue") + ("*" if fields[1].endswith("*") else "")
                 fields[2] = mask.public(

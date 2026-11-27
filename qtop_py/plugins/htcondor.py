@@ -7,7 +7,8 @@ import logging
 from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping
 
-from qtop_py.core_api import GenericBatchSystem, open_input
+from qtop_py.core_api import GenericBatchSystem, SchedulerInputError, open_input
+from qtop_py.core_safety import MAX_CORES_PER_NODE
 
 if TYPE_CHECKING:
     from typing import Final
@@ -31,8 +32,15 @@ def slot_type(ad: Mapping[str, Any]) -> str:
 
 
 def _count(value: Any, default: int = 0) -> int:
-    """Return a nonnegative ClassAd integer, or default when it is missing or not an integer."""
-    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else default
+    """Return a nonnegative ClassAd integer, or default when it is missing or not an integer.
+
+    Raise SchedulerInputError above MAX_CORES_PER_NODE, before a slot's cores are enumerated.
+    """
+    if not (isinstance(value, int) and not isinstance(value, bool) and value >= 0):
+        return default
+    if value > MAX_CORES_PER_NODE:
+        raise SchedulerInputError("HTCondor CPU count %d exceeds %d" % (value, MAX_CORES_PER_NODE))
+    return value
 
 
 class HTCondorBatchSystem(GenericBatchSystem):
@@ -90,7 +98,7 @@ class HTCondorBatchSystem(GenericBatchSystem):
         slot_cpus: Dict[str, int] = {}
         for ad in self._ads(self.status_file):
             if not isinstance(ad.get("Machine"), str) or not ad["Machine"] or not isinstance(ad.get("Name"), str):
-                raise ValueError("condor_status ad lacks Name or Machine: %r" % ad.get("Name"))
+                raise SchedulerInputError("condor_status ad lacks Name or Machine: %r" % ad.get("Name"))
             name = ad["Machine"]
             machine = machines.setdefault(name, {"cores": 0, "states": set()})
             kind = slot_type(ad)
@@ -122,7 +130,7 @@ class HTCondorBatchSystem(GenericBatchSystem):
         """Return slot@machine with the machine anonymized like condor_status Machine."""
         slot, separator, machine = name.partition("@")
         if not separator or not slot or not machine:
-            raise ValueError("Invalid HTCondor slot name: %r" % name)
+            raise SchedulerInputError("Invalid HTCondor slot name: %r" % name)
         return "%s@%s" % (slot, machine)
 
     def _jobs(self) -> List[Dict[str, Any]]:
@@ -133,7 +141,7 @@ class HTCondorBatchSystem(GenericBatchSystem):
     def _job(self, ad: Mapping[str, Any]) -> Dict[str, Any]:
         cluster, proc, status = ad.get("ClusterId"), ad.get("ProcId"), ad.get("JobStatus")
         if _count(cluster, -1) < 0 or _count(proc, -1) < 0 or status not in JOB_STATES or not isinstance(ad.get("Owner"), str):
-            raise ValueError("Invalid condor_q job ad: ClusterId=%r ProcId=%r JobStatus=%r" % (cluster, proc, status))
+            raise SchedulerInputError("Invalid condor_q job ad: ClusterId=%r ProcId=%r JobStatus=%r" % (cluster, proc, status))
         group = ad.get("AcctGroup")
         remote = ad.get("RemoteHost")
         return {
@@ -153,5 +161,5 @@ class HTCondorBatchSystem(GenericBatchSystem):
             return []
         ads = json.loads(text)
         if not isinstance(ads, list) or not all(isinstance(ad, dict) for ad in ads):
-            raise ValueError("HTCondor JSON in %s is not a list of ClassAds" % path)
+            raise SchedulerInputError("HTCondor JSON in %s is not a list of ClassAds" % path)
         return ads

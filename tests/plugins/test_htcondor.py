@@ -9,7 +9,7 @@ import pytest
 from support import nodes_by_name, sample_backend
 
 from qtop_py import configuration
-from qtop_py.core_api import BackendOptions
+from qtop_py.core_api import BackendOptions, SchedulerInputError
 from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.htcondor import JOB_STATES, HTCondorBatchSystem, slot_type
 
@@ -103,3 +103,10 @@ def test_every_job_status_letter_is_configured():
 
     config = configuration.with_backend_defaults(yaml_parser.parse(str(Path(__file__).resolve().parents[2] / "qtopconf.yaml")))
     assert set(JOB_STATES.values()) == set(config["state_abbreviations"]["htcondor"])
+
+
+@pytest.mark.parametrize("field", ["Cpus", "TotalSlotCpus"])
+def test_cpu_counts_beyond_a_node_are_rejected_before_cores_are_enumerated(tmp_path, field):
+    ad = {"Name": "slot1@a", "Machine": "a", "SlotType": "Partitionable" if field == "TotalSlotCpus" else "Static", "Cpus": 1, field: 10**20}
+    with pytest.raises(SchedulerInputError, match="CPU count 100000000000000000000 exceeds"):
+        nodes_by_name(backend(tmp_path, status=[ad]))

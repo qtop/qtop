@@ -5,6 +5,7 @@
 import copy
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, cast
 
+from qtop_py.core_api import SchedulerInputError
 from qtop_py.schedulers.extensions import ExtensionSpec, Mask, MaskJob, nonempty_texts
 from qtop_py.schedulers.gpu import validate_gpu_resources
 
@@ -21,24 +22,24 @@ def validate_job(record: Dict[str, object]) -> None:
     if "slurm_partitions" in record:
         values = record["slurm_partitions"]
         if not isinstance(values, list) or not values or not nonempty_texts(cast(List[object], values)):
-            raise ValueError("slurm_partitions must be a list of nonempty strings")
+            raise SchedulerInputError("slurm_partitions must be a list of nonempty strings")
         if record["queue"] not in values:
-            raise ValueError("job queue must belong to slurm_partitions")
+            raise SchedulerInputError("job queue must belong to slurm_partitions")
 
 
 def validate_node(record: Dict[str, object]) -> None:
     """Raise ValueError if a node's Slurm state, block, GPU, CPU or allocation-source fields are malformed."""
     if "slurm_node_state" in record and not isinstance(record["slurm_node_state"], str):
-        raise ValueError("slurm_node_state must be text")
+        raise SchedulerInputError("slurm_node_state must be text")
     if "slurm_block" in record and not nonempty_texts([record["slurm_block"]]):
-        raise ValueError("slurm_block must be nonempty text")
+        raise SchedulerInputError("slurm_block must be nonempty text")
     for field in GPU_FIELDS:
         if field in record:
             validate_gpu_resources(record[field], binding=field == "slurm_gpu_bindings")
     if "slurm_unmapped_cpus" in record and (type(record["slurm_unmapped_cpus"]) is not int or record["slurm_unmapped_cpus"] < 0):
-        raise ValueError("slurm_unmapped_cpus must be a nonnegative integer")
+        raise SchedulerInputError("slurm_unmapped_cpus must be a nonnegative integer")
     if "cpu_allocation_source" in record and record["cpu_allocation_source"] not in ("slurm", "estimated", "none"):
-        raise ValueError("node cpu_allocation_source must be slurm, estimated or none")
+        raise SchedulerInputError("node cpu_allocation_source must be slurm, estimated or none")
 
 
 def mask_job(original: Mapping[str, Any], job: Dict[str, object], mask: Mask) -> None:

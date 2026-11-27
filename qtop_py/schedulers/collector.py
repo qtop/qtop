@@ -3,6 +3,7 @@
 """Scheduler-neutral command collection, capture and snapshot orchestration."""
 
 import copy
+import json
 import logging
 import os
 import tarfile
@@ -17,7 +18,8 @@ from qtop_py import core_sample as sample
 from qtop_py.colormap import user_to_color_default
 from qtop_py.configuration import CONFIG_ERRORS
 from qtop_py.constants import QTOPCONF_YAML
-from qtop_py.core_api import GenericBatchSystem, OperationalError
+from qtop_py.core_api import GenericBatchSystem, OperationalError, SchedulerInputError
+from qtop_py.core_safety import ResourceLimitError
 from qtop_py.runtime import RunPaths, RunResources
 from qtop_py.schedulers.registry import decide_batch_system
 from qtop_py.snapshot import Snapshot
@@ -26,6 +28,10 @@ if TYPE_CHECKING:
     from qtop_py import core_state_types as state_types
 
 logger = logging.getLogger(__name__)
+
+
+# What a backend raises for unreadable scheduler output; MVU_collect_snapshot reports anything else as unexpected.
+INPUT_ERRORS = (SchedulerInputError, ResourceLimitError, json.JSONDecodeError, UnicodeError, ParseError)
 
 
 def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, Tuple[str, str]]:
@@ -115,8 +121,12 @@ def MVU_collect_snapshot(
         else:
             built = collected if collected is not None else core_api.collect(backend, args.workdir, args, config=config, files=trace_paths)
             cluster_state = built.state
-    except (ValueError, UnicodeError, ParseError) as error:
+    except INPUT_ERRORS as error:
         raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
+    except ValueError as error:  # not raised as an input error: possibly a qtop bug, so say so
+        raise OperationalError(
+            "Cannot parse %s scheduler input in %s: unexpected %s: %s (possibly a qtop bug; -d shows the traceback)" % (scheduler, args.workdir, type(error).__name__, error)
+        ) from error
     if getattr(args, "ANONYMIZE", False) and not args.SAMPLE and not args.load_sample:  # -A: masked once, after the state is built
         cluster_state = sample.anonymize_state(cluster_state)[0]
     # core_api.collect() already validated the state (unless -A replaced it); --strict validates it again here.

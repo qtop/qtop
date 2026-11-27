@@ -3,6 +3,7 @@
 """A new plugin supplies policy without editing the core runtime."""
 
 import io
+import json
 import tarfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -11,10 +12,12 @@ import pytest
 
 from qtop_py import core_process as process_io
 from qtop_py import qtop, user_details
-from qtop_py.core_errors import OperationalError
+from qtop_py.core_errors import OperationalError, SchedulerInputError
 from qtop_py.core_queue_nodes import queue_node_counts
 from qtop_py.core_serialiser import GenericBatchSystem
 from qtop_py.mvu import MVU_Model
+from qtop_py.plugins.slurm import SlurmArrayIdError
+from qtop_py.plugins.slurm_json import UnsupportedSlurmJSON
 from qtop_py.schedulers import collector, registry
 from qtop_py.ui import mvu_view
 
@@ -194,3 +197,29 @@ def test_user_detail_options_are_off_only_while_saving_a_masked_sample(sample, a
     assert user_details.user_detail_option(options, "SHOW_GROUPS") is expected
     assert options.GET_GECOS is options.SHOW_GROUPS is True  # derived, never written back
     assert user_details.user_detail_option(SimpleNamespace(), "SHOW_GROUPS") is False
+
+
+@pytest.mark.parametrize(
+    "raised, message",
+    [
+        (SchedulerInputError("unsupported job row"), "Cannot parse custom scheduler input in /work: unsupported job row"),
+        (json.JSONDecodeError("Expecting value", "", 0), "Cannot parse custom scheduler input in /work: Expecting value"),
+        (ValueError("x not in list"), "unexpected ValueError: x not in list (possibly a qtop bug; -d shows the traceback)"),
+    ],
+    ids=["input-error", "json-decode", "bare-valueerror"],
+)
+def test_collector_tells_bad_input_from_unexpected_value_errors(monkeypatch, raised, message):
+    def collect(*args, **kwargs):
+        raise raised
+
+    monkeypatch.setattr(collector.core_api, "collect", collect)
+    options = SimpleNamespace(load_sample=None, SAMPLE=0, ANONYMIZE=False, workdir="/work")
+    with pytest.raises(OperationalError) as error:
+        collector.MVU_collect_snapshot(options, {"savepath": "/work"}, CustomBackend, {}, None)
+    assert message in str(error.value) and error.value.__cause__ is raised
+    assert ("possibly a qtop bug" in str(error.value)) is (type(raised) is ValueError)
+
+
+def test_scheduler_input_error_stays_a_value_error():
+    assert issubclass(SchedulerInputError, ValueError)
+    assert issubclass(UnsupportedSlurmJSON, SchedulerInputError) and issubclass(SlurmArrayIdError, SchedulerInputError)

@@ -803,7 +803,7 @@ class Cluster(object):
             REMAP = False
         logger.info("Blind Remapping [user selected]: %s,\n\t\t\t\t\t\t\t\t  Decided Remapping: %s", self.args.BLINDREMAP, REMAP)
 
-        if logging.getLogger().isEnabledFor(logging.DEBUG) and REMAP:
+        if logger.isEnabledFor(logging.DEBUG) and REMAP:
             user_request = "The user has requested it (blindremap switch)" if self.args.BLINDREMAP else False
 
             subclusters = "there are different WN namings, e.g. wn001, wn002, ..., ps001, ps002, ... etc" if len(node_name_prefixes) > 1 else False

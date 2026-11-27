@@ -36,3 +36,11 @@ class InvalidScheduler(Exception):
         Exception.__init__(self, "Selected scheduler system not supported: %s" % requested)
         self.requested = requested
         self.choices = tuple(choices)
+
+
+class SchedulerInputError(ValueError):
+    """Scheduler output (or a replayed state) that qtop cannot read; the message names what is wrong.
+
+    A ValueError, so handlers written before it existed still catch it. The collector reports it as
+    bad input; any other ValueError reaching the collector is flagged as unexpected.
+    """

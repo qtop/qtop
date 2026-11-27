@@ -11,7 +11,7 @@ from collections import Counter
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from qtop_py import core_safety as safety
-from qtop_py.core_api import open_input
+from qtop_py.core_api import SchedulerInputError, open_input
 from qtop_py.core_warnings import first_time
 from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor, slurm_accounting_state
 from qtop_py.schedulers.gpu import parse_accelerator_gres
@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from qtop_py.core_api import TraceMasker
     from qtop_py.core_state_types import ClusterState, Config, Options
 
+logger = logging.getLogger(__name__)
 JOB_FLAG_PRIORITY: "Final" = (
     "COMPLETING",
     "STAGE_OUT",
@@ -47,7 +48,7 @@ _ESCAPES: "Final" = re.compile(r"\\(x[0-9A-Fa-f]{2}|.)")
 # session would otherwise repeat the same warning every cycle.
 
 
-class UnsupportedSlurmJSON(ValueError):
+class UnsupportedSlurmJSON(SchedulerInputError):
     """The Slurm client cannot provide a supported JSON response."""
 
 
@@ -58,9 +59,9 @@ def integer(value: Any, default: Optional[int] = None) -> int:
     if value is None or (default is not None and value in (4294967294, 4294967295)):
         if default is not None:
             return default
-        raise ValueError("missing Slurm integer")
+        raise SchedulerInputError("missing Slurm integer")
     if type(value) is not int or value < 0:
-        raise ValueError("invalid Slurm integer")
+        raise SchedulerInputError("invalid Slurm integer")
     return value
 
 
@@ -69,7 +70,7 @@ def flags(value: Any) -> str:
     if isinstance(value, list) and all(isinstance(item, str) and item for item in value):
         value = "+".join(value)
     if not isinstance(value, str) or not value:
-        raise ValueError("missing Slurm state")
+        raise SchedulerInputError("missing Slurm state")
     return value
 
 
@@ -78,7 +79,7 @@ def unique_fields(pairs: List[Tuple[str, Any]]) -> Dict[str, Any]:
     fields: Dict[str, Any] = {}
     for key, value in pairs:
         if key in fields:
-            raise ValueError("duplicate Slurm JSON field %r" % key)
+            raise SchedulerInputError("duplicate Slurm JSON field %r" % key)
         fields[key] = value
     return fields
 
@@ -117,7 +118,7 @@ def decode_slurm_json(text: str, strict: bool = False) -> Tuple[Any, List[str]]:
         data = json.loads(repaired, object_pairs_hook=unique_fields, parse_constant=constant)
     found = sorted(set(found))
     if found and strict:
-        raise ValueError("%s: found %s; remove those parameters, or run without --strict to read it with a warning" % (NOT_STRICT, ", ".join(found)))
+        raise SchedulerInputError("%s: found %s; remove those parameters, or run without --strict to read it with a warning" % (NOT_STRICT, ", ".join(found)))
     return data, found
 
 
@@ -130,23 +131,23 @@ def read_response(path: str, key: str, options: Any = None) -> Tuple[str, List[D
     with open_input(path, encoding="utf-8", options=options) as stream:
         data, found = decode_slurm_json(safety.read_json_text(stream), strict=bool(getattr(options, "STRICT", False)))
     if found and first_time("slurm_json", key, ", ".join(found)):
-        logging.getLogger(__name__).warning("%s in %s: found %s; non-finite numbers read as unset (--strict stops instead)", NOT_STRICT, os.path.basename(path), ", ".join(found))
+        logger.warning("%s in %s: found %s; non-finite numbers read as unset (--strict stops instead)", NOT_STRICT, os.path.basename(path), ", ".join(found))
     if not isinstance(data, dict):
-        raise ValueError("Slurm JSON response must be an object")
+        raise SchedulerInputError("Slurm JSON response must be an object")
     meta = data.get("meta")
     plugin = meta.get("plugin") if isinstance(meta, dict) else None
     version = plugin.get("data_parser") if isinstance(plugin, dict) else None
     if not isinstance(version, str):
-        raise ValueError("missing Slurm JSON parser metadata")
+        raise SchedulerInputError("missing Slurm JSON parser metadata")
     if version.startswith("data_parser/"):
         version = version[len("data_parser/") :]
     if version not in SUPPORTED_PARSERS:
         raise UnsupportedSlurmJSON("unsupported Slurm JSON data_parser %r" % version)
     if data.get("errors"):
-        raise ValueError("Slurm JSON reports scheduler errors")
+        raise SchedulerInputError("Slurm JSON reports scheduler errors")
     rows = data.get(key)
     if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
-        raise ValueError("Slurm JSON requires a %s list" % key)
+        raise SchedulerInputError("Slurm JSON requires a %s list" % key)
     return version, rows
 
 
@@ -270,7 +271,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         try:
             self._load(scheduler_output_filenames)
         except (KeyError, TypeError, AttributeError, IndexError) as error:
-            raise ValueError("malformed Slurm JSON field: %s" % error) from error
+            raise SchedulerInputError("malformed Slurm JSON field: %s" % error) from error
 
     def _load(self, scheduler_output_filenames: Dict[str, str]) -> None:
         versions = []
@@ -282,13 +283,13 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
             version, records[key] = read_response(path, key, self.options)
             versions.append(version)
         if len(set(versions)) != 1:
-            raise ValueError("Slurm JSON responses use different schema versions")
+            raise SchedulerInputError("Slurm JSON responses use different schema versions")
         self._layout = ALLOCATION_LAYOUTS.get(versions[0], AllocationLayout)
         self._partitions: Dict[str, str] = {}
         for row in records["partitions"]:
             name = row["name"]
             if not isinstance(name, str) or not name or name in self._partitions:
-                raise ValueError("invalid or duplicate Slurm partition")
+                raise SchedulerInputError("invalid or duplicate Slurm partition")
             self._partitions[name] = flags(row["partition"]["state"] if isinstance(row.get("partition"), dict) else row["state"])
         self._nodes = self._parse_nodes(records["nodes"])
         self._jobs = self._parse_jobs(records["jobs"])
@@ -298,17 +299,17 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         for row in rows:
             name = row["name"]
             if not isinstance(name, str) or not name or name in self._topology:
-                raise ValueError("invalid or duplicate Slurm node")
+                raise SchedulerInputError("invalid or duplicate Slurm node")
             self._topology[name] = row
             capacity = integer(row["cpus"])
             if safety.cores_per_node(capacity) is None:
-                raise ValueError("Slurm node exceeds CPU budget")
+                raise SchedulerInputError("Slurm node exceeds CPU budget")
             partitions = row.get("partitions")
             partitions = [] if partitions is None else partitions
             if isinstance(partitions, str):
                 partitions = partitions.split(",") if partitions else []
             if not isinstance(partitions, list) or any(not isinstance(partition, str) or not partition for partition in partitions):
-                raise ValueError("invalid Slurm node partitions")
+                raise SchedulerInputError("invalid Slurm node partitions")
             state = flags(row["state"])
             marker = (
                 "d"
@@ -320,7 +321,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
                 gres = row.get(source)
                 if gres is not None:
                     if not isinstance(gres, str):
-                        raise ValueError("invalid Slurm node GRES")
+                        raise SchedulerInputError("invalid Slurm node GRES")
                     self._gpu_inventory[name][target] = parse_accelerator_gres(gres)
             for partition in partitions or [""]:
                 nodes.append(
@@ -351,26 +352,26 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
             elif array and row.get("array_task_string"):
                 task_ids = SlurmStatExtractor.expand_job_id("%s_[%s]" % (array, row["array_task_string"]))
             elif array:
-                raise ValueError("missing Slurm array task identity")
+                raise SchedulerInputError("missing Slurm array task identity")
             if het:
                 if array:
-                    raise ValueError("conflicting array and heterogeneous identity")
+                    raise SchedulerInputError("conflicting array and heterogeneous identity")
                 job_id = "%s+%s" % (het, integer(row.get("het_job_offset")))
             state = flags(row["job_state"])
             primary = self.display_job_state(state)
             partitions = list(dict.fromkeys(row["partition"].split(",")))
             user = row.get("user_name") or str(integer(row.get("user_id")))
             if not isinstance(user, str) or not user or any(not partition for partition in partitions):
-                raise ValueError("invalid Slurm job user or partition")
+                raise SchedulerInputError("invalid Slurm job user or partition")
             node_list = row.get("nodes")
             node_list = "" if node_list is None else node_list
             if not isinstance(node_list, str):
-                raise ValueError("invalid Slurm JSON node-list type")
+                raise SchedulerInputError("invalid Slurm JSON node-list type")
             hosts = self.expand_nodelist(node_list)
             if len(set(hosts)) != len(hosts):
-                raise ValueError("duplicate Slurm JSON allocated hosts")
+                raise SchedulerInputError("duplicate Slurm JSON allocated hosts")
             if row.get("nodes") and not hosts:
-                raise ValueError("invalid Slurm JSON node list")
+                raise SchedulerInputError("invalid Slurm JSON node list")
             job = {
                 "JobId": job_id,
                 "UnixAccount": user,
@@ -385,15 +386,15 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
             for source, target in (("tres_alloc_str", "slurm_tres_alloc"), ("tres_per_node", "slurm_tres_per_node"), ("tres_per_task", "slurm_tres_per_task")):
                 job[target] = "" if row.get(source) is None else row[source]
                 if not isinstance(job[target], str):
-                    raise ValueError("invalid Slurm job TRES")
+                    raise SchedulerInputError("invalid Slurm job TRES")
             if len(task_ids) > 1 and primary in self.ACTIVE_STATES:
-                raise ValueError("grouped active array allocations are ambiguous")
+                raise SchedulerInputError("grouped active array allocations are ambiguous")
             expanded_count += len(task_ids) if task_ids else 0
             if expanded_count > SlurmStatExtractor.MAX_EXPANDED_TASKS:
-                raise ValueError("too many grouped Slurm JSON array tasks")
+                raise SchedulerInputError("too many grouped Slurm JSON array tasks")
             for identity in task_ids or [job_id]:
                 if identity in seen:
-                    raise ValueError("duplicate Slurm JSON job identity")
+                    raise SchedulerInputError("duplicate Slurm JSON job identity")
                 seen.add(identity)
                 task_job = dict(job, JobId=identity)
                 task_job.update(SlurmStatExtractor.identity_fields(identity))
@@ -404,20 +405,20 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
 
     def _parse_allocation(self, job: Dict[str, Any], row: Dict[str, Any], hosts: List[str]) -> None:
         if any(host not in self._topology for host in hosts):
-            raise ValueError("Slurm allocation references missing node; try --all")
+            raise SchedulerInputError("Slurm allocation references missing node; try --all")
         gres = row.get("gres_detail")
         gres = [] if gres is None else gres
         if not isinstance(gres, list) or gres and len(gres) != len(hosts):
-            raise ValueError("Slurm GRES detail does not match allocated hosts")
+            raise SchedulerInputError("Slurm GRES detail does not match allocated hosts")
         self._bindings[job["JobId"]] = {host: parse_accelerator_gres(value) for host, value in zip(hosts, gres) if value is not None}
         resources = row.get("job_resources")
         if resources is None:
             return  # unavailable detail is explicitly estimated by the legacy policy
         if not isinstance(resources, dict):
-            raise ValueError("invalid Slurm job_resources")
+            raise SchedulerInputError("invalid Slurm job_resources")
         allocations = self._layout.allocations(resources)
         if not isinstance(allocations, list):
-            raise ValueError("missing Slurm per-node allocation list")
+            raise SchedulerInputError("missing Slurm per-node allocation list")
         total = self._layout.total_cpus(resources)
         if total:
             job["CPUs"] = total
@@ -425,20 +426,20 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         for allocation in allocations:
             host = self._layout.host(allocation)
             if host in details or host not in hosts:
-                raise ValueError("conflicting Slurm allocation node")
+                raise SchedulerInputError("conflicting Slurm allocation node")
             node = self._topology.get(host)
             if node is None:
-                raise ValueError("Slurm allocation references missing node; try --all")
+                raise SchedulerInputError("Slurm allocation references missing node; try --all")
             cpus = self._cpu_ids(allocation, node)
             count = self._layout.cpu_count(allocation, cpus)
             if count > len(cpus):
-                raise ValueError("Slurm CPU count exceeds the reported allocation bitmap")
+                raise SchedulerInputError("Slurm CPU count exceeds the reported allocation bitmap")
             if count > integer(node["cpus"]):
-                raise ValueError("Slurm per-node allocation exceeds capacity")
+                raise SchedulerInputError("Slurm per-node allocation exceeds capacity")
             details[host] = (cpus, count, bool(cpus) and count == len(cpus))
         self._layout.fit_to_job(details, job["CPUs"])
         if set(details) != set(hosts) or sum(detail[1] for detail in details.values()) != job["CPUs"]:
-            raise ValueError("Slurm per-node CPU allocation totals disagree")
+            raise SchedulerInputError("Slurm per-node CPU allocation totals disagree")
         self._allocations[job["JobId"]] = details
 
     def _cpu_ids(self, allocation: Dict[str, Any], node: Dict[str, Any]) -> List[int]:
@@ -446,7 +447,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         sockets = allocation["sockets"]
         cores_per_socket, threads = integer(node["cores"]), integer(node["threads"])
         if not cores_per_socket or not threads or not integer(node["sockets"]) or cores_per_socket * threads * integer(node["sockets"]) > safety.MAX_CORES_PER_NODE:
-            raise ValueError("invalid Slurm socket/core/SMT topology")
+            raise SchedulerInputError("invalid Slurm socket/core/SMT topology")
         socket_rows = sockets.items() if isinstance(sockets, dict) else ((row["index"], row) for row in sockets)
         for socket, details in socket_rows:
             socket_id = integer(int(socket) if isinstance(socket, str) and socket.isdecimal() else socket)
@@ -457,13 +458,13 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
                 if "UNALLOCATED" in state:
                     continue
                 if "ALLOCATED" not in state:
-                    raise ValueError("unknown Slurm CPU allocation status")
+                    raise SchedulerInputError("unknown Slurm CPU allocation status")
                 core_id = integer(int(core) if isinstance(core, str) and core.isdecimal() else core)
                 if socket_id < 0 or socket_id >= integer(node["sockets"]) or core_id < 0 or core_id >= cores_per_socket:
-                    raise ValueError("Slurm allocation outside CPU topology")
+                    raise SchedulerInputError("Slurm allocation outside CPU topology")
                 cpus.extend(range((socket_id * cores_per_socket + core_id) * threads, (socket_id * cores_per_socket + core_id + 1) * threads))
         if len(set(cpus)) != len(cpus) or cpus and max(cpus) >= integer(node["cpus"]):
-            raise ValueError("duplicate or out-of-capacity Slurm CPU IDs")
+            raise SchedulerInputError("duplicate or out-of-capacity Slurm CPU IDs")
         return cpus
 
     def _apply_cpu_allocations(self, worker_nodes: Dict[str, Dict[str, Any]], job_hosts: Any = None) -> None:
@@ -490,7 +491,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
             if not exact:
                 cpus = [cpu for cpu in (cpus or range(int(node["np"]))) if cpu not in mapping][:count]
             if len(cpus) != count or any(cpu in mapping for cpu in cpus):
-                raise ValueError("Slurm CPU allocations overlap or exceed representable capacity")
+                raise SchedulerInputError("Slurm CPU allocations overlap or exceed representable capacity")
             mapping.update((cpu, job_id) for cpu in cpus)
             node["cpu_allocation_source"] = "estimated" if not exact or node["cpu_allocation_source"] == "estimated" else "slurm"
 

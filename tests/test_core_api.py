@@ -19,6 +19,7 @@ PUBLIC = [
     "FileEmptyError",
     "GenericBatchSystem",
     "OperationalError",
+    "SchedulerInputError",
     "StatExtractor",
     "TraceMasker",
     "build_cluster_state",

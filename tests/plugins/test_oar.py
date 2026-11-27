@@ -17,6 +17,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from qtop_py.core_api import SchedulerInputError
 from qtop_py.core_sample import anonymize_state
 from qtop_py.mvu import MVU_Model
 from qtop_py.mvu_query import Cluster, WNOccupancy
@@ -198,3 +199,10 @@ def test_queue_counts_with_no_jobs(tmp_path, content):
 )
 def test_calculate_oar_state_handles_uniform_mixed_and_unknown_states(resources, expected):
     assert OARBatchSystem._calculate_oar_state(resources, DEFAULT_NODE_STATE_MAPPING) == expected
+
+
+def test_a_non_numeric_resource_id_is_named_as_bad_input(oar_trace, tmp_path):
+    backend = oar_trace("---\n1:\n    jobs: 101\n")
+    (tmp_path / "oarnodes_s.txt").write_text("---\nnode1:\n    x: Alive\n")
+    with pytest.raises(SchedulerInputError, match="Invalid OAR resource ID 'x'"):
+        backend.get_cluster_state(backend.options)

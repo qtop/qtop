@@ -1756,8 +1756,10 @@ with tempfile.TemporaryDirectory() as workdir:
   `SLURM_JSON_SQUEUE`); a switch left out takes its default.
 - `command_lines`, `command_env`, `run_commands` and `trace_files` are the steps
   `collect()` composes, for callers that store or ship traces apart from parsing them.
-- Errors: `OperationalError` for failed commands and missing traces, `ValueError` for
-  unparsable input and a missing `env=`.
+- Errors: `OperationalError` for failed commands and missing traces,
+  `SchedulerInputError` (a `ValueError`) for unparsable input, and `ValueError` for a
+  missing `env=`. qtop reports any other `ValueError` from a backend as unexpected, a
+  possible qtop bug, and `-d` shows its traceback.
 - The record types (`ClusterState`, `Node`, `Job`, ...) are for type checkers only, as
   qtop supports Python 3.6: import them from `qtop_py.core_state_types` under
   `if TYPE_CHECKING:`.
@@ -1787,6 +1789,9 @@ types from `qtop_py/core_state_types.py` under `TYPE_CHECKING`; `tests/test_core
 pins the interface. A backend reports raw
 names: `-A` masks the built state once, for every backend, so it never reads `-A`
 or `-L`. Its options carry only collection settings (`core_api.BackendOptions`).
+Raise `core_api.SchedulerInputError` with a message naming what is wrong when the
+scheduler output cannot be read; a bare `ValueError` (say from `int()` on an unchecked
+field) is reported as a possible qtop bug.
 
 A backend is self-standing: its module declares, on the class, `default_commands`
 (trace key to `"output file, command"`), the `signature_command` that `-b auto` looks
