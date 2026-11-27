@@ -97,7 +97,7 @@ def _check_core_positions(name: object, np: int, cores: Dict[object, object]) ->
     if _CORE_INT_TYPE.issuperset(map(type, cores)):  # fast path: distinct int keys need only a range check
         if min(cast(Dict[int, object], cores)) >= 0 and max(cast(Dict[int, object], cores)) < np:
             return
-    seen = set()
+    seen: Set[int] = set()
     for core in cores:
         position = core if type(core) is int else int(core) if isinstance(core, str) and _CORE_TEXT.fullmatch(core) else -1
         if not 0 <= position < np or position in seen:
