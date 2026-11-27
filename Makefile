@@ -281,6 +281,10 @@ release-tag-check:: ## Fail unless RELEASE_TAG is v<package version>
 		echo "Release tag $$RELEASE_TAG does not match package version $$VERSION"; exit 1; }; \
 	echo "Release tag $$RELEASE_TAG matches qtop $$VERSION"
 
+# Non-blocking for now: reports CHANGELOG/tag drift from local tags (git fetch --tags first); not in pre-pr or CI.
+release-audit:: ## Report CHANGELOG headings, tags and tagged versions that disagree
+	$(PYTHON) tools/release_audit.py $(RELEASE_AUDIT_ARGS)
+
 validated-build:: build ## Build once, validate those exact release artifacts and inventory them
 	$(MAKE) release-check sbom sbom-ci
 

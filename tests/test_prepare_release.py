@@ -40,7 +40,7 @@ def test_invalid_or_nonadvancing_releases_are_rejected(version):
 
 
 @pytest.mark.parametrize("write", (False, True))
-def test_release_cli_writes_only_when_requested(tmp_path, monkeypatch, write):
+def test_release_cli_writes_only_when_requested(tmp_path, monkeypatch, capsys, write):
     monkeypatch.setattr(prepare_release, "ROOT", tmp_path)
     monkeypatch.setattr(prepare_release, "release_plan", lambda *args: {"version.txt": "new"})
     monkeypatch.setattr(prepare_release.subprocess, "check_output", lambda *args, **kwargs: "")
@@ -48,6 +48,7 @@ def test_release_cli_writes_only_when_requested(tmp_path, monkeypatch, write):
     monkeypatch.setattr("sys.argv", ["prepare-release", "--version", "0.9.20990101"] + (["--write"] if write else []))
     prepare_release.main()
     assert (tmp_path / "version.txt").exists() is write
+    assert ('git tag -a v0.9.20990101 -m "qtop 0.9.20990101"' in capsys.readouterr().err) is write
 
 
 @pytest.mark.parametrize(
@@ -101,3 +102,18 @@ def test_latest_changelog_items_are_single_lines_within_100_characters():
     assert items and all(line.startswith("- ") for line in items), "one line per item, no wrapped continuations"
     long = ["%d characters: %s" % (len(line), line[:40]) for line in items if len(line) > 100]
     assert not long, "shorten these CHANGELOG items to 100 characters: %s" % "; ".join(long)
+
+
+def test_changelog_headings_are_unique_descending_versions():
+    headings = re.findall(r"^## (.+)$", (ROOT / "CHANGELOG.md").read_text(encoding="utf-8"), re.M)
+    assert "Unreleased" not in headings, "notes go under the latest version heading"
+    keys = [tuple(int(part) for part in heading.split(".")) for heading in headings]
+    misplaced = [heading for heading, earlier, later in zip(headings[1:], keys, keys[1:]) if earlier <= later]
+    assert not misplaced, "CHANGELOG headings must be unique and newest first: %s" % misplaced
+
+
+def test_latest_changelog_items_are_sorted_by_type_with_release_last():
+    latest = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8").split("\n## ")[1]
+    types = [line[2:].split(":", 1)[0] for line in latest.splitlines()[1:] if line.startswith("- ")]
+    assert types and types[-1] == "Release", "the Release: update version metadata line stays last"
+    assert types[:-1] == sorted(types[:-1]), "sort items by the part before ':' (stable within a type): %s" % types
