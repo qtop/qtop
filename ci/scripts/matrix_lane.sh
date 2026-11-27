@@ -30,6 +30,8 @@ PYBIN="${3:?PYBIN required}"
 TARGET="${4:?TARGET required (ci|compat-py36)}"
 
 log() { printf '\n=== %s ===\n' "$*"; }
+# shellcheck source=ci/scripts/retry.sh
+source "$(dirname "${BASH_SOURCE[0]}")/retry.sh"
 
 PKG_LIST=""
 if [[ "${PKGS}" != "-" ]]; then
@@ -126,13 +128,13 @@ case "${TARGET}" in
         chmod 700 "${PYTEST_PRIVATE_ROOT}"
         export PYTEST_ADDOPTS="${PYTEST_ADDOPTS:+${PYTEST_ADDOPTS} }--basetemp=${PYTEST_PRIVATE_ROOT}/basetemp"
         log "make ci-deps"
-        make ci-deps PYTHON="${LANE_PY}"
+        retry make ci-deps PYTHON="${LANE_PY}"
         log "make nightly-ci"
-        make nightly-ci PYTHON="${LANE_PY}"
+        retry make nightly-ci PYTHON="${LANE_PY}"
         ;;
     compat-py36)
         log "make compat-py36"
-        make compat-py36 PYTHON="${PYBIN}"
+        retry make compat-py36 PYTHON="${PYBIN}"
         ;;
     *)
         echo "unknown target: ${TARGET}" >&2

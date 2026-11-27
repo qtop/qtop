@@ -1,5 +1,7 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
+import shutil
+import subprocess
 from collections import Counter
 from itertools import product
 from pathlib import Path
@@ -87,6 +89,42 @@ def test_pull_requests_run_the_core_debian_lane_on_both_forges():
     assert build["container"] == "debian:bookworm" and command in [step.get("run") for step in build["steps"]]
     gitlab = yaml.safe_load((ROOT / "ci/test.gitlab-ci.yml").read_text())["nightly-lane"]
     assert gitlab["image"] == "debian:bookworm" and gitlab["script"] == [command]
+
+
+def test_pull_request_lanes_do_not_retry_but_nightlies_do():
+    """Nightly lanes retry flakes; the PR lanes on both forges must still fail on the first error."""
+    build = yaml.safe_load((ROOT / ".github/workflows/build.yml").read_text())["jobs"]["nightly-lane"]
+    lane_step = next(step for step in build["steps"] if "matrix_lane.sh" in step.get("run", ""))
+    assert lane_step["env"]["LANE_RETRIES"] == "0"
+    assert yaml.safe_load((ROOT / "ci/test.gitlab-ci.yml").read_text())["nightly-lane"]["variables"]["LANE_RETRIES"] == "0"
+    assert 'LANE_RETRIES="${LANE_RETRIES:-2}"' in (ROOT / "ci/scripts/retry.sh").read_text()
+
+
+def run_retry(script, **env):
+    """Source ci/scripts/retry.sh with sleep stubbed out, then run script in bash."""
+    stub = "sleep() { :; }; source ci/scripts/retry.sh; " + script
+    return subprocess.run(["bash", "-c", stub], cwd=str(ROOT), env=dict(env, PATH="/usr/bin:/bin"), stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="lane scripts need bash")
+@pytest.mark.parametrize("failures, retries, succeeds", ((0, "2", True), (2, "2", True), (3, "2", False), (1, "0", False)))
+def test_retry_reruns_failed_gates_with_a_dotted_wait(tmp_path, failures, retries, succeeds):
+    counter = tmp_path / "attempts"
+    flaky = "flaky() { n=$(( $(cat %s 2>/dev/null || echo 0) + 1 )); echo $n > %s; [ $n -gt %d ]; }; retry flaky" % (counter, counter, failures)
+    result = run_retry(flaky, LANE_RETRIES=retries, LANE_RETRY_WAIT="12")
+    attempts = min(failures + 1, int(retries) + 1)
+    assert (result.returncode == 0) is succeeds
+    assert int(counter.read_text()) == attempts
+    waits = attempts - 1 if succeeds else int(retries)
+    assert result.stdout == "..........\n..\n" * waits
+    assert ("giving up after %d attempts" % attempts in result.stderr) is not succeeds
+
+
+@pytest.mark.skipif(shutil.which("bash") is None, reason="lane scripts need bash")
+def test_retry_keeps_the_exit_code_and_annotates_github_retries():
+    result = run_retry("retry sh -c 'exit 7'", LANE_RETRIES="1", LANE_RETRY_WAIT="10", GITHUB_ACTIONS="true")
+    assert result.returncode == 7
+    assert result.stdout.count("::warning title=lane retry::") == 1 and ".........." in result.stdout
 
 
 def test_github_split_runs_every_pre_pr_check_once():

@@ -44,6 +44,8 @@ modern-python:
 nightly-lane:
   image: debian:bookworm
   stage: test
+  variables:
+    LANE_RETRIES: "0"  # MR lane: a flaky change fails its review; nightlies retry
   script:
     - bash ci/scripts/matrix_lane.sh debian python3,python3-venv,python3-pip python3 ci
   artifacts:

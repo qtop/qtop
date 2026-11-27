@@ -225,8 +225,23 @@ def test_failed_export_removes_partial_file_and_does_not_notify_web(tmp_path):
     web = Mock()
     with pytest.raises(OSError, match="export failed"):
         qtop.export_snapshot(FailedSnapshot(), SimpleNamespace(EXPORT=True, WEB=True), str(tmp_path), "test", web)
-    assert not list(tmp_path.glob("qtop_json_*.json"))
+    assert not list(tmp_path.iterdir())
     web.set_filename.assert_not_called()
+
+
+def test_interrupted_export_never_shows_a_partial_snapshot(tmp_path):
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    class InterruptedSnapshot:
+        def save(self, path):
+            Path(path).write_text("{")
+            assert not list(tmp_path.glob("qtop_json_*.json")), "readers would see a partial snapshot"
+            raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        qtop.export_snapshot(InterruptedSnapshot(), SimpleNamespace(EXPORT=True, WEB=False), str(tmp_path), "test", Mock())
+    assert not list(tmp_path.iterdir())
 
 
 @pytest.mark.parametrize("export, serve", [(False, False), (True, False), (False, True), (True, True)])
@@ -241,6 +256,7 @@ def test_export_switches_write_valid_json_and_only_notify_requested_web(tmp_path
     assert len(paths) == int(export or serve)
     if paths:
         assert json.loads(paths[0].read_text()) == state
+    assert len(list(tmp_path.iterdir())) == len(paths)  # no .part left behind
     if serve:
         web.set_filename.assert_called_once_with(str(paths[0]))
     else:

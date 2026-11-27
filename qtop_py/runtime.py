@@ -236,15 +236,19 @@ def MVU_export_snapshot(snapshot: Snapshot, args: Any, savepath: str, timestr: s
     """Write the snapshot as JSON for -E or the web view, and point the web server at it."""
     if not (args.EXPORT or args.WEB):
         return
-    with tempfile.NamedTemporaryFile(delete=False, prefix="qtop_json_%s_" % timestr, suffix=".json", dir=savepath) as json_file:
-        json_filename = json_file.name
+    # Written under a hidden .part name and renamed into place, as support archives are:
+    # an interrupt (SIGINT/SIGTERM) mid-export never leaves an empty or truncated qtop_json_*.json.
+    handle, partial = tempfile.mkstemp(prefix=".qtop_json_%s_" % timestr, suffix=".json.part", dir=savepath)
+    os.close(handle)
+    json_filename = os.path.join(savepath, os.path.basename(partial)[1 : -len(".part")])
     saved = False
     try:
-        snapshot.save(json_filename)
+        snapshot.save(partial)
+        os.replace(partial, json_filename)
         saved = True
     finally:
         if not saved:
             with contextlib.suppress(OSError):
-                os.unlink(json_filename)
+                os.unlink(partial)
     if args.WEB:
         web.set_filename(json_filename)

@@ -115,6 +115,8 @@ jobs:
         with:
           persist-credentials: false
       - run: bash ci/scripts/matrix_lane.sh debian python3,python3-venv,python3-pip python3 ci
+        env:
+          LANE_RETRIES: "0"  # PR lane: a flaky change fails its review; nightlies retry
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
