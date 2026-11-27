@@ -29,17 +29,8 @@ def test_save_directory_is_private_even_with_permissive_umask(tmp_path):
         assert info.st_uid == os.geteuid()
 
 
-def test_owned_readable_directory_becomes_private(tmp_path):
-    target = tmp_path / "results"
-    target.mkdir(mode=0o755)
-    (target / "previous.out").write_text("previous state")
-    fileutils.private_save_directory(str(target))
-    assert stat.S_IMODE(target.stat().st_mode) == 0o700
-    assert (target / "previous.out").read_text() == "previous state"
-
-
-@pytest.mark.parametrize("mode", (0o770, 0o777))
-def test_save_directory_tightens_existing_shared_writes(tmp_path, mode):
+@pytest.mark.parametrize("mode", (0o755, 0o770, 0o777), ids=("readable", "group-writable", "world-writable"))
+def test_owned_save_directory_becomes_private_and_keeps_its_files(tmp_path, mode):
     target = tmp_path / "results"
     target.mkdir()
     target.chmod(mode)
@@ -49,24 +40,34 @@ def test_save_directory_tightens_existing_shared_writes(tmp_path, mode):
     assert (target / "previous.out").read_text() == "previous state"
 
 
-def test_save_directory_rejects_foreign_owner_before_chmod(tmp_path, monkeypatch):
-    target = tmp_path / "results"
-    target.mkdir(mode=0o755)
-    inode = target.stat().st_ino
-    real_fstat = os.fstat
+@pytest.mark.parametrize("kind", ("save-directory", "log-file"))
+def test_foreign_owner_is_rejected_before_chmod(tmp_path, monkeypatch, kind):
+    """A path whose descriptor reports another owner is refused, and keeps its mode and contents."""
+    if kind == "save-directory":
+        path = tmp_path / "results"
+        path.mkdir(mode=0o755)
+        refused, message = lambda: fileutils.private_save_directory(str(path)), "owned by the current user"
+    else:
+        path = tmp_path / "qtop.log"
+        path.write_text("untouched")
+        path.chmod(0o644)
+        refused, message = lambda: fileutils.private_log_stream(str(path)), "user-owned"
+    mode, inode, real_fstat = stat.S_IMODE(path.stat().st_mode), path.stat().st_ino, os.fstat
 
-    def foreign_owner(fd):
-        info = real_fstat(fd)
-        if info.st_ino == inode:
-            values = list(info)
-            values[4] = os.geteuid() + 1
-            return os.stat_result(values)
-        return info
+    def foreign_owner(descriptor):
+        info = real_fstat(descriptor)
+        if info.st_ino != inode:
+            return info
+        values = list(info)
+        values[4] = os.geteuid() + 1
+        return os.stat_result(values)
 
     monkeypatch.setattr(fileutils.os, "fstat", foreign_owner)
-    with pytest.raises(PermissionError, match="owned by the current user"):
-        fileutils.private_save_directory(str(target))
-    assert stat.S_IMODE(target.stat().st_mode) == 0o755
+    with pytest.raises(PermissionError, match=message):
+        refused()
+    assert stat.S_IMODE(path.stat().st_mode) == mode
+    if kind == "log-file":
+        assert path.read_text() == "untouched"
 
 
 @pytest.mark.parametrize("suffix", ("", "/results"))
@@ -472,28 +473,6 @@ def test_root_owned_link_loop_is_bounded(tmp_path, monkeypatch):
     _as_root_owned(monkeypatch, site / "a", site / "b")
     with pytest.raises(OSError):
         fileutils.private_save_directory(str(site / "a" / "results"))
-
-
-def test_private_log_rejects_foreign_owner_before_chmod(tmp_path, monkeypatch):
-    path = tmp_path / "qtop.log"
-    path.write_text("untouched")
-    path.chmod(0o644)
-    inode = path.stat().st_ino
-    fstat = os.fstat
-
-    def foreign_owner(descriptor):
-        info = fstat(descriptor)
-        if info.st_ino == inode:
-            values = list(info)
-            values[4] = os.geteuid() + 1
-            return os.stat_result(values)
-        return info
-
-    monkeypatch.setattr(fileutils.os, "fstat", foreign_owner)
-    with pytest.raises(PermissionError, match="user-owned"):
-        fileutils.private_log_stream(str(path))
-    assert path.read_text() == "untouched"
-    assert stat.S_IMODE(path.stat().st_mode) == 0o644
 
 
 @pytest.mark.parametrize("directory", [False, True])

@@ -133,6 +133,12 @@ Tag the release `v<version>`: the EasyBuild recipe downloads that tarball.
 tag differs from `qtop_py.__version__` fails before building or reaching PyPI.
 This gate is temporary until the 1.0 namespace change.
 
+After `--write`, the helper prints the annotated `git tag -a v<version>` command to
+run on the merge commit. `make release-audit` reports CHANGELOG sections without a
+tag, bare or lightweight tags and tags whose `__version__` differs, from local tags
+(`git fetch --tags` first). It is non-blocking for now: `--strict` (via
+`RELEASE_AUDIT_ARGS`) exits 1 on findings, and it is not part of `pre-pr` or CI.
+
 ## Nightly compatibility lanes
 
 The nightly matrix runs as two separately reported tiers, mirrored lane for lane
@@ -159,6 +165,10 @@ schedule targets `develop`. Manual runs test the ref they are started on, so
 run both workflows on `main` before tagging a release.
 
 All lanes use `ci/scripts/matrix_lane.sh` and the shared CI pins.
+A failed lane gate (`ci-deps`, `nightly-ci`, `compat-py36`) is retried twice after a
+one-minute wait that prints a dot a second, ten per line (`ci/scripts/retry.sh`;
+`LANE_RETRIES`, `LANE_RETRY_WAIT`). Each retry is logged, and annotated on GitHub,
+so a flake stays visible on a green run. The PR lanes set `LANE_RETRIES=0`.
 Every lane that installs them runs Python 3.10+, so all get the patched
 setuptools 84.2.1 and pytest 9.2.0. Python 3.10-3.11 also install wheel 0.48.0
 so the installation check uses a backend that supports the project's PEP 639

@@ -3,6 +3,21 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261125
+
+- Bugfix: -E/web JSON exports land via a hidden .part rename; SIGINT never leaves an empty snapshot
+- CI: nightly lanes retry failed gates twice after 60s of dots (ci/scripts/retry.sh); PR lanes don't
+- Docs: README calls qtop an observability layer for HPC & AI clusters
+- Docs: local-testing.md counts refreshed for 0.9.20261125: 2,639 pytest cases, 22 scheduler samples
+- Refactor: Snapshot.save encodes with one json.dumps(); 1 MB PBS exports encode 6x faster
+- Tests: CHANGELOG headings must be unique and newest first; latest items sorted by type
+- Tests: viewport scrolls, CLI errors and foreign-owner checks are case tables; a duplicate is gone
+- Tests: tests/support.py shares sample backends, nodes_by_name and tar writers across modules
+- Tests: the in-process runtime fixture moves to conftest; conformance and 4 CLI tests use it
+- Tools: prepare_release.py --write prints the annotated v-tag command for the merge commit
+- Tools: make release-audit reports CHANGELOG/tag/version drift from local tags (non-blocking)
+- Release: update version metadata to 0.9.20261125
+
 ## 0.9.20261124
 
 - Bugfix: tools/prepare_release.py writes no ## Unreleased heading, as the changelog keeps none

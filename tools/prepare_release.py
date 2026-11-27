@@ -7,6 +7,7 @@ import datetime
 import difflib
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -85,6 +86,10 @@ def main():
                     moved = subprocess.call(["git", "mv", "--", name, renamed], cwd=str(ROOT)) == 0
                 if not moved:
                     path.unlink()
+            # Bare (October) and lightweight tags crept in by hand; print the one form release-tag-check accepts.
+            print("next: after the release PR merges, tag its merge commit and push the tag to qtop/qtop:", file=sys.stderr)
+            print('  git tag -a v%s -m "qtop %s" <merge-commit>' % (VERSION, VERSION), file=sys.stderr)
+            print("  git push <qtop/qtop remote> v%s" % VERSION, file=sys.stderr)
     except (ValueError, OSError) as error:
         parser.error(str(error))
 

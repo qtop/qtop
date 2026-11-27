@@ -1,24 +1,15 @@
 ## Copyright (c) 2026 qtop contributors
 ## SPDX-License-Identifier: MIT
 
-import io
 import tarfile
 from pathlib import Path
 
 import pytest
+from support import write_tar
 
 from qtop_py import trace_archive
 
 CONFIGURED = {key + "_file": "%(savepath)s/" + key + "%(pid)s.txt, ignored" for key in ("squeue", "sinfo", "scontrol")}
-
-
-def make_archive(path, entries, mode="w"):
-    with tarfile.open(str(path), mode) as archive:
-        for name, text in entries:
-            data = text.encode()
-            member = tarfile.TarInfo(name)
-            member.size = len(data)
-            archive.addfile(member, io.BytesIO(data))
 
 
 @pytest.mark.parametrize("reverse", (False, True))
@@ -33,7 +24,7 @@ def test_archive_selection_is_coherent_complete_and_order_independent(tmp_path, 
         ("other/squeue_99.txt", "incomplete"),
     ]
     archive = tmp_path / "input.tar"
-    make_archive(archive, list(reversed(entries)) if reverse else entries, mode)
+    write_tar(archive, list(reversed(entries)) if reverse else entries, mode)
     output = tmp_path / "output"
     output.mkdir(mode=0o700)
     paths = trace_archive.load_trace_archive(str(archive), str(output), CONFIGURED, ("scontrol_file",))
@@ -44,7 +35,7 @@ def test_archive_selection_is_coherent_complete_and_order_independent(tmp_path, 
 @pytest.mark.parametrize("reverse", (False, True))
 def test_equal_completeness_uses_lexicographically_last_cohort(tmp_path, reverse):
     entries = [(folder + "/" + name + "_10.txt", folder) for folder in ("a", "z") for name in ("squeue", "sinfo")]
-    make_archive(tmp_path / "input.tar", list(reversed(entries)) if reverse else entries)
+    write_tar(tmp_path / "input.tar", list(reversed(entries)) if reverse else entries)
     (tmp_path / "output").mkdir(mode=0o700)
     paths = trace_archive.load_trace_archive(str(tmp_path / "input.tar"), str(tmp_path / "output"), CONFIGURED, ("scontrol_file",))
     assert all(Path(path).read_text() == "z" for path in paths.values())
@@ -62,7 +53,7 @@ def test_equal_completeness_uses_lexicographically_last_cohort(tmp_path, reverse
     ),
 )
 def test_archive_never_mixes_incomplete_sets_or_uses_unsafe_members(tmp_path, entries):
-    make_archive(tmp_path / "input.tar", entries)
+    write_tar(tmp_path / "input.tar", entries)
     (tmp_path / "output").mkdir(mode=0o700)
     with pytest.raises(ValueError, match="no unambiguous complete"):
         trace_archive.load_trace_archive(str(tmp_path / "input.tar"), str(tmp_path / "output"), CONFIGURED, ("scontrol_file",))
@@ -71,7 +62,7 @@ def test_archive_never_mixes_incomplete_sets_or_uses_unsafe_members(tmp_path, en
 
 @pytest.mark.parametrize("kind", (tarfile.SYMTYPE, tarfile.LNKTYPE, tarfile.FIFOTYPE))
 def test_archive_does_not_follow_links_or_special_files(tmp_path, kind):
-    make_archive(tmp_path / "input.tar", [("sinfo.txt", "nodes")])
+    write_tar(tmp_path / "input.tar", [("sinfo.txt", "nodes")])
     with tarfile.open(str(tmp_path / "input.tar"), "a") as archive:
         member = tarfile.TarInfo("squeue.txt")
         member.type, member.linkname = kind, "sinfo.txt"
@@ -82,7 +73,7 @@ def test_archive_does_not_follow_links_or_special_files(tmp_path, kind):
 
 
 def test_archive_limits_are_checked_before_materialization(tmp_path, monkeypatch):
-    make_archive(tmp_path / "input.tar", [("squeue.txt", "jobs"), ("sinfo.txt", "nodes")])
+    write_tar(tmp_path / "input.tar", [("squeue.txt", "jobs"), ("sinfo.txt", "nodes")])
     (tmp_path / "output").mkdir(mode=0o700)
     monkeypatch.setattr(trace_archive, "MAX_TRACE_BYTES", 2)
     with pytest.raises(ValueError, match="size limits"):
@@ -91,7 +82,7 @@ def test_archive_limits_are_checked_before_materialization(tmp_path, monkeypatch
 
 
 def _complete_archive(tmp_path):
-    make_archive(tmp_path / "input.tar", [("squeue_1.txt", "jobs"), ("sinfo_1.txt", "nodes")])
+    write_tar(tmp_path / "input.tar", [("squeue_1.txt", "jobs"), ("sinfo_1.txt", "nodes")])
     return tmp_path / "input.tar"
 
 

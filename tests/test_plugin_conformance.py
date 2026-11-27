@@ -9,9 +9,7 @@ and replay. See "Adding a scheduler backend" in docs/documentation.md.
 """
 
 import json
-import os
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -63,26 +61,22 @@ def test_extension_specs_do_not_overlap():
             seen[key] = spec.label
 
 
-def _export(case, tmp_path, *extra):
-    output = tmp_path / ("out" + "".join(extra))
-    command = [sys.executable, "-m", "qtop_py.qtop", "-b", case["scheduler"], "-E", "-O", "-c", "OFF", "-o", "savepath=%s" % output]
-    if case.get("source"):
-        command[5:5] = ["-s", str(case["source"])]
-    env = dict(os.environ, HOME=str(tmp_path), PYTHONPATH=str(ROOT))
-    env.pop("QTOP_SCHEDULER", None)
-    result = subprocess.run(command + list(extra), cwd=str(ROOT), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, timeout=60)
-    assert result.returncode == 0, result.stderr
+def _export(runtime, case, *extra):
+    """Export the case's sample with qtop -E inside the test process; return the exported state."""
+    source = ["-s", str(case["source"])] if case.get("source") else []
+    result, output = runtime("-b", case["scheduler"], *(source + list(extra)))
+    assert result == 0
     (export,) = output.glob("qtop_json_*.json")
     return json.loads(export.read_text())
 
 
 @pytest.mark.parametrize("case", [case for case in SAMPLE_CASES if case["scheduler"] not in ("demo", "demo72")], ids=lambda case: case["name"])
-def test_backend_sample_survives_export_anonymization_and_replay(case, tmp_path):
-    state = _export(case, tmp_path)
+def test_backend_sample_survives_export_anonymization_and_replay(case, runtime):
+    state = _export(runtime, case)
     validated = validate_cluster_state(state)
     assert Snapshot.from_cluster_state(validated).to_cluster_state() == validated
 
-    masked_text = json.dumps(_export(case, tmp_path, "-A"))
+    masked_text = json.dumps(_export(runtime, case, "-A"))
     # Some committed samples are themselves anonymized; re-masking those names may reproduce them.
     users = {job["user"] for job in state["jobs"] if not re.fullmatch(r".?_anon_user_[0-9]+", job["user"])}
     leaked = [user for user in users if json.dumps(user) in masked_text]
