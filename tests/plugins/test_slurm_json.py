@@ -10,17 +10,10 @@ import pytest
 from qtop_py.core_api import BackendOptions
 from qtop_py.core_cluster_state import validate_cluster_state
 from qtop_py.core_sample import anonymize_state
-from qtop_py.plugins import slurm_json
 from qtop_py.plugins.slurm import SlurmBatchSystem
 from qtop_py.plugins.slurm_json import SUPPORTED_PARSERS, SlurmJSONBatchSystem, UnsupportedSlurmJSON
 
 SAMPLES = Path(__file__).parent / "slurm_json_samples"
-
-
-@pytest.fixture(autouse=True)
-def fresh_warnings(monkeypatch):
-    """Each test starts a new run: no non-strict JSON warning has been given yet."""
-    monkeypatch.setattr(slurm_json, "_WARNED", set())
 
 
 @pytest.fixture(params=SUPPORTED_PARSERS, ids=SUPPORTED_PARSERS)

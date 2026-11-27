@@ -110,7 +110,7 @@ class SGEStatExtractor(StatExtractor):
                 tree = etree.ElementTree(parser.close())
             except (etree.ParseError, IOError):
                 raise
-            except Exception as error:
+            except Exception as error:  # any other parser failure is unreadable input, logged with its traceback.
                 logger.debug("XML file state %s", fin, exc_info=True)
                 raise OperationalError("Cannot read SGE XML %s: %s" % (xml_file, error)) from error
             else:

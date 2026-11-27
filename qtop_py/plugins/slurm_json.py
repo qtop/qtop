@@ -8,10 +8,11 @@ import os
 import re
 import shlex
 from collections import Counter
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from qtop_py import core_safety as safety
 from qtop_py.core_api import open_input
+from qtop_py.core_warnings import first_time
 from qtop_py.plugins.slurm import SlurmBatchSystem, SlurmStatExtractor, slurm_accounting_state
 from qtop_py.schedulers.gpu import parse_accelerator_gres
 
@@ -44,7 +45,6 @@ _NON_STRICT_TOKENS: "Final" = re.compile(r'"(?:[^"\\]|\\.)*"|-NaN')
 _ESCAPES: "Final" = re.compile(r"\\(x[0-9A-Fa-f]{2}|.)")
 # (response, tokens) already warned about: the backend is rebuilt on every collection, so a watch
 # session would otherwise repeat the same warning every cycle.
-_WARNED: "Set[Tuple[str, str]]" = set()
 
 
 class UnsupportedSlurmJSON(ValueError):
@@ -129,8 +129,7 @@ def read_response(path: str, key: str, options: Any = None) -> Tuple[str, List[D
     """
     with open_input(path, encoding="utf-8", options=options) as stream:
         data, found = decode_slurm_json(safety.read_json_text(stream), strict=bool(getattr(options, "STRICT", False)))
-    if found and (key, ", ".join(found)) not in _WARNED:
-        _WARNED.add((key, ", ".join(found)))
+    if found and first_time("slurm_json", key, ", ".join(found)):
         logging.getLogger(__name__).warning("%s in %s: found %s; non-finite numbers read as unset (--strict stops instead)", NOT_STRICT, os.path.basename(path), ", ".join(found))
     if not isinstance(data, dict):
         raise ValueError("Slurm JSON response must be an object")
@@ -284,8 +283,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
             versions.append(version)
         if len(set(versions)) != 1:
             raise ValueError("Slurm JSON responses use different schema versions")
-        self._version = versions[0]
-        self._layout = ALLOCATION_LAYOUTS.get(self._version, AllocationLayout)
+        self._layout = ALLOCATION_LAYOUTS.get(versions[0], AllocationLayout)
         self._partitions: Dict[str, str] = {}
         for row in records["partitions"]:
             name = row["name"]

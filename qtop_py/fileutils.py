@@ -16,6 +16,7 @@ import tempfile
 from typing import Any, Callable, Dict, Generator, List, Mapping, Optional, Set, TextIO, Tuple, TypeVar
 
 from qtop_py.core_safety import visible_text
+from qtop_py.core_warnings import first_time
 
 logger = logging.getLogger(__name__)
 
@@ -184,7 +185,6 @@ def private_log_stream(path: str, strict: bool = False) -> io.TextIOWrapper:
 # Best-effort escape when savepath or the log cannot pass the checks above: a private directory
 # under /dev/shm (then the system temp dir), created through the same no-follow walk.
 FALLBACK_ROOTS: Tuple[str, ...] = ("/dev/shm",)  # nosec B108 - private 0700 subdirectory via _private_directory
-_fallback_warnings: Set[Tuple[str, str]] = set()
 _T = TypeVar("_T")
 
 
@@ -196,9 +196,8 @@ def _fallback_roots() -> List[str]:
 
 
 def _warn_fallback(what: str, path: str, error: OSError, fallback: str) -> None:
-    if (what, path) in _fallback_warnings:
+    if not first_time("fallback", what, path):
         return
-    _fallback_warnings.add((what, path))
     reason = "%s%s" % (error.strerror or error, " (%s)" % error.filename if error.filename else "")
     message = visible_text("warning: cannot use %s %s: %s; using %s instead (best effort; --strict-parents stops instead)" % (what, path, reason, fallback))
     sys.stderr.write("qtop: %s\n" % message)

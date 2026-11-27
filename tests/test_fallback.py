@@ -22,7 +22,6 @@ def shm(tmp_path, monkeypatch):
     root.chmod(0o1777)
     monkeypatch.setattr(fileutils, "FALLBACK_ROOTS", (str(root),))
     monkeypatch.setattr(fileutils.tempfile, "gettempdir", lambda: str(root))
-    monkeypatch.setattr(fileutils, "_fallback_warnings", set())
     monkeypatch.delenv("QTOP_FALLBACK_DIR", raising=False)
     return root / ("qtop_fallback_%d" % os.geteuid())
 

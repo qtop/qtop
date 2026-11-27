@@ -66,9 +66,12 @@ def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], confi
 def fetch_scheduler_files(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the scheduler trace files, collected live or read from -s; raise OperationalError on bad commands."""
     scheduler_name = backend.get_mnemonic()
+    entries = config["schedulers"].get(scheduler_name)
+    if not isinstance(entries, Mapping):
+        raise OperationalError("Invalid scheduler command configuration for %s in %s: expected a mapping of trace keys to commands" % (scheduler_name, QTOPCONF_YAML))
     try:
         INPUT_FNs_commands = finalize_filepaths_schedulercommands(args, config, backend)
-    except (ValueError, TypeError, KeyError, AttributeError) as error:
+    except ValueError as error:
         raise OperationalError("Invalid scheduler command configuration for %s in %s: %s" % (scheduler_name, QTOPCONF_YAML, error)) from error
     if getattr(args, "source_archive", None):
         from qtop_py.trace_archive import load_trace_archive

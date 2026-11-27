@@ -11,6 +11,7 @@ import pytest
 
 from qtop_py import core_process as process_io
 from qtop_py import qtop, user_details
+from qtop_py.core_errors import OperationalError
 from qtop_py.core_queue_nodes import queue_node_counts
 from qtop_py.core_serialiser import GenericBatchSystem
 from qtop_py.mvu import MVU_Model
@@ -107,6 +108,34 @@ def test_collection_uses_explicit_inputs_without_runtime_initialization(monkeypa
     monkeypatch.setattr(registry.shutil, "which", lambda command: "/bin/native")
     assert registry.auto_get_avail_batch_system({"signature_commands": {"custom": "native"}}, {"custom": CustomBackend}) == "custom"
     assert user_details.get_detail_of_name([], {"extract_info": None}, SimpleNamespace(GET_GECOS=False)) == {}
+
+
+@pytest.mark.parametrize(
+    "entries, cause",
+    [
+        (None, "expected a mapping"),
+        ({"main_file": "no separator"}, "main_file: expected"),
+        ({"main_file": "%(home)s/main.txt, native"}, "KeyError"),
+        ({"main_file": 7}, "AttributeError"),
+    ],
+    ids=["missing", "no-separator", "unknown-placeholder", "not-text"],
+)
+def test_malformed_command_entries_are_configuration_errors(tmp_path, entries, cause):
+    options = SimpleNamespace(SOURCEDIR=str(tmp_path), workdir=str(tmp_path))
+    config = {"schedulers": {} if entries is None else {"custom": entries}}
+    with pytest.raises(OperationalError, match="Invalid scheduler command configuration for custom") as error:
+        collector.fetch_scheduler_files(options, config, CustomBackend)
+    assert cause in str(error.value)
+
+
+def test_backend_bugs_in_collection_command_are_not_configuration_errors(monkeypatch, tmp_path):
+    def broken(key, command, options):
+        raise KeyError("backend bug")
+
+    monkeypatch.setattr(CustomBackend, "collection_command", staticmethod(broken))
+    options = SimpleNamespace(SOURCEDIR=str(tmp_path), workdir=str(tmp_path))
+    with pytest.raises(KeyError, match="backend bug"):
+        collector.fetch_scheduler_files(options, {"schedulers": {"custom": {"main_file": "%(savepath)s/m, native"}}}, CustomBackend)
 
 
 def test_archive_collection_uses_explicit_backend_and_caches_selected_set(monkeypatch, tmp_path):
