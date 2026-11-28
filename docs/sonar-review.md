@@ -138,3 +138,29 @@ The `# NOSONAR` at the two `trace_archive.py` lines did not keep this rule
 so suppressing in code does not work for it. These five need marking "Safe"
 or "Accepted" in SonarCloud with a link to this section. As before, an LLM or
 other runner that passes CLI arguments must enforce its own permitted roots.
+
+## Review 2026-11-28 (scan of e880da9)
+
+Thirteen findings, raised by the testOrgan/qtop fork's own SonarCloud project,
+which does not share the reviewed status of these lines: one changed, twelve
+left as they are.
+
+### Changed (1)
+
+| Scanned file and lines | Change |
+| --- | --- |
+| `.github/workflows/scorecard.yml:39` | The workflow default is `contents: read`, as in every other workflow, not `read-all`; both jobs keep their own explicit permissions. |
+
+### Left as they are (12)
+
+| Scanned file and lines | Reason |
+| --- | --- |
+| `qtop_py/core_inputs.py:28`, `qtop_py/core_safety.py:200`, `qtop_py/runtime.py:210` | The `-s` input, archive or savepath the caller chose, as in the 2026-11-20 and 2026-11-25 reviews. |
+| `qtop_py/schedulers/collector.py:219` | The trace name is a basename inside the working directory, as in the 2026-11-20 review. |
+| `qtop_py/trace_archive.py:33,48` | As under "Suppressed in code": the `-s` archive, and qtop's own 0700 workspace. |
+| `tools/private_output.py:27,60`, `tools/validate_trace_export.py:39,172` | Caller-selected inputs and output root, as in the 2026-11-20 review. |
+| `tools/repo_sanity.py:66` | `check_diff` already refuses a `--base-ref` starting with `-`, as in the 2026-11-20 review. |
+| `qtop_py/fileutils.py:187` | The `/dev/shm` fallback parent, as in the 2026-11-25 review. |
+
+As before, these need marking "Safe" or "Accepted" in that SonarCloud project
+with a link to this section.

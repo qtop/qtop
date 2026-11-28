@@ -5,6 +5,8 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261127
 
+- CI: scorecard.yml defaults to contents: read like the other workflows, not read-all (Sonar S8234)
+- Docs: sonar-review.md records the e880da9 scan: scorecard permissions fixed, 12 findings as before
 - Release: update version metadata to 0.9.20261127
 
 ## 0.9.20261126
