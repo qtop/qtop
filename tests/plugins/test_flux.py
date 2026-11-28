@@ -36,7 +36,7 @@ def job(job_id, state="RUN", nodelist=None, ncores=1, queue="batch", user="alice
 def test_sample_jobs_use_f58_ids_flux_state_letters_and_queues():
     job_ids, users, states, queues = backend().get_jobs_info()
     assert len(job_ids) == 11 and set(users) == {"fluxuser"}
-    assert job_ids[-1] == "ƒHcexB9" and states[-1] == "R" and queues[-1] == "batch"
+    assert job_ids[-1] == "\u0192HcexB9" and states[-1] == "R" and queues[-1] == "batch"
     assert sorted(states) == ["D"] + ["R"] * 5 + ["S"] * 5  # the held job is S, as flux jobs prints it
 
 
@@ -55,9 +55,9 @@ def test_nodes_are_broker_ranks_with_their_allocated_cores_and_states():
     assert {name: node["state"] for name, node in nodes.items()} == dict(
         [("node%02d" % rank, "-") for rank in (1, 2, 3, 4, 6)] + [("node05", "o"), ("node07", "d"), ("node08", "d")]
     )
-    assert nodes["node01"]["np"] == 16 and nodes["node01"]["core_job_map"] == {14: "ƒTcL7My", 15: "ƒTcL7My"}
-    assert nodes["node05"]["core_job_map"] == {core: "ƒL6TkWb" for core in range(8, 16)}  # draining, still running mpi
-    assert nodes["node06"]["core_job_map"] == {core: "ƒHcexB9" for core in range(16)}
+    assert nodes["node01"]["np"] == 16 and nodes["node01"]["core_job_map"] == {14: "\u0192TcL7My", 15: "\u0192TcL7My"}
+    assert nodes["node05"]["core_job_map"] == {core: "\u0192L6TkWb" for core in range(8, 16)}  # draining, still running mpi
+    assert nodes["node06"]["core_job_map"] == {core: "\u0192HcexB9" for core in range(16)}
     assert not nodes["node07"]["core_job_map"]
 
 
@@ -97,9 +97,17 @@ def test_allocated_gpus_and_empty_status_states_are_ignored(tmp_path):
 
 
 def test_an_instance_without_named_queues_uses_default(tmp_path):
-    flux = backend(tmp_path, jobs_json={"jobs": [job("fA", state="SCHED", queue=None)]}, queues_file=" ✔ ✔\n")
+    flux = backend(tmp_path, jobs_json={"jobs": [job("fA", state="SCHED", queue=None)]}, queues_file=" y y\n")
     assert flux.get_jobs_info()[3] == ["default"]
     assert flux.get_queues_info()[2] == [{"queue_name": "default", "run": 0, "queued": 1, "lm": "--", "state": "Enabled:Started"}]
+
+
+def test_a_paused_queue_is_blocked_and_the_queue_trace_is_optional(tmp_path):
+    states = {queue["queue_name"]: queue["state"] for queue in backend(tmp_path, queues_file="sub y p\n").get_queues_info()[2]}
+    assert states["sub"] == "Enabled:Paused" and FluxBatchSystem.queue_is_blocked(states["sub"])
+    files = {key: str(SAMPLE / name) for key, name in TRACES.items() if key != "queues_file"}
+    names = [queue["queue_name"] for queue in FluxBatchSystem(files, {}, BackendOptions()).get_queues_info()[2]]
+    assert sorted(names) == ["batch", "gpu", "long"]
 
 
 def test_inactive_jobs_and_an_empty_instance_list_nothing(tmp_path):
@@ -137,6 +145,7 @@ def test_malformed_or_oversized_idsets_are_input_errors(text):
         ({"rlist_file": "allocated rank0/core[0-1]junk\n"}, "Invalid flux resource list entry"),
         ({"status_file": "sleeping node01\n"}, "Unsupported flux resource status line"),
         ({"queues_file": "batch yes no\n"}, "Unsupported flux queue list line"),
+        ({"queues_file": "batch \u2714 \u2714\n"}, "Unsupported flux queue list line"),
     ],
 )
 def test_unreadable_traces_name_what_is_wrong(tmp_path, replaced, message):

@@ -61,7 +61,7 @@ experimental_web_port: 8080
 #     resource_json: %(savepath)s/flux_resource_R%(pid)s.json, flux resource R
 #     rlist_file: %(savepath)s/flux_resource_list%(pid)s.txt, flux resource list -no '{state} {rlist}'
 #     status_file: %(savepath)s/flux_resource_status%(pid)s.txt, flux resource status -no '{state} {nodelist}'
-#     queues_file: %(savepath)s/flux_queue_list%(pid)s.txt, flux queue list -no '{queue} {enabled} {started}'
+#     queues_file: %(savepath)s/flux_queue_list%(pid)s.txt, flux queue list -no '{queue} {enabled.ascii} {started.ascii}'
 #   htcondor:
 #     status_json: %(savepath)s/condor_status%(pid)s.json, condor_status -json -attributes Name,Machine,SlotType,PartitionableSlot,DynamicSlot,State,Activity,Cpus,TotalSlotCpus
 #     q_json: %(savepath)s/condor_q%(pid)s.json, condor_q -allusers -json -attributes ClusterId,ProcId,Owner,JobStatus,RemoteHost,RequestCpus,AcctGroup

@@ -1730,7 +1730,7 @@ flux jobs -A --json
 flux resource R
 flux resource list -no '{state} {rlist}'
 flux resource status -no '{state} {nodelist}'
-flux queue list -no '{queue} {enabled} {started}'
+flux queue list -no '{queue} {enabled.ascii} {started.ascii}'
 ./qtop -b flux -s tests/plugins/flux_samples/basic -F
 ```
 
@@ -1738,7 +1738,7 @@ flux queue list -no '{queue} {enabled} {started}'
   R`. `flux resource status` gives the state: `avail` is `-`, `draining`,
   `drained` and `exclude` are `o`, `torpid` is `s`, `housekeeping` is `b`, and
   any state marked `*` (broker offline) is down, `d`.
-- **Jobs** are the active jobs of all users, by their f58 ID (`ƒHcexB9`), with
+- **Jobs** are the active jobs of all users, by the f58 ID `flux jobs` prints, with
   the state letters `flux jobs` prints (`D`, `P`, `S`, `R`, `C`); a held job is
   `S`, as there.
 - **Cores**: the allocated cores of each node come from `flux resource list`, and
@@ -1747,8 +1747,10 @@ flux queue list -no '{queue} {enabled} {started}'
   cores (`ncores` over `nnodes`). On a node that runs one job this is exact; where
   jobs share a node, which job holds which core is estimated, an allocated core
   with no listed job is `?`, and a note under the snapshot says so.
-- **Queues** come from `flux queue list`; a stopped queue is blocked (`*`). An
-  instance without named queues has one anonymous queue, shown as `default`.
+- **Queues** come from `flux queue list`; a stopped queue, or one paused by a
+  stopped parent, is blocked (`*`). An instance without named queues has one
+  anonymous queue, shown as `default`. That trace is optional: a flux-core too
+  old for `{enabled.ascii}` still shows the queues its jobs name.
 
 GPUs are read but not yet shown. Masked source traces (`--masked-traces`) are not
 offered for Flux and are listed as omitted; `-A` exports are anonymized. The

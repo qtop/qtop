@@ -10,7 +10,7 @@ on `node[07-08]`. Hosts 07 and 08 have no broker, so they are offline.
 - `flux_resource_R.json`: `flux resource R`
 - `flux_resource_list.txt`: `flux resource list -no '{state} {rlist}'`
 - `flux_resource_status.txt`: `flux resource status -no '{state} {nodelist}'`
-- `flux_queue_list.txt`: `flux queue list -no '{queue} {enabled} {started}'`
+- `flux_queue_list.txt`: `flux queue list -no '{queue} {enabled.ascii} {started.ascii}'`
 
 Queues `batch` and `long` use `node[01-06]` and `gpu` uses `node[07-08]`; `long`
 is stopped. `node05` was drained while running a job, so it is `draining`. The

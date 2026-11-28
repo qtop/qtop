@@ -64,7 +64,7 @@ class FluxBatchSystem(GenericBatchSystem):
         "resource_json": "%(savepath)s/flux_resource_R%(pid)s.json, flux resource R",
         "rlist_file": "%(savepath)s/flux_resource_list%(pid)s.txt, flux resource list -no '{state} {rlist}'",
         "status_file": "%(savepath)s/flux_resource_status%(pid)s.txt, flux resource status -no '{state} {nodelist}'",
-        "queues_file": "%(savepath)s/flux_queue_list%(pid)s.txt, flux queue list -no '{queue} {enabled} {started}'",
+        "queues_file": "%(savepath)s/flux_queue_list%(pid)s.txt, flux queue list -no '{queue} {enabled.ascii} {started.ascii}'",
     }
     state_abbreviations = {
         "D": "waiting_of_user",
@@ -73,6 +73,7 @@ class FluxBatchSystem(GenericBatchSystem):
         "R": "running_of_user",
         "C": "exiting_of_user",
     }
+    optional_trace_keys = ("queues_file",)  # {enabled.ascii} needs a recent flux-core; queues then come from jobs
     extensions = FLUX_EXTENSION
 
     @staticmethod
@@ -82,8 +83,8 @@ class FluxBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def queue_is_blocked(state: object) -> bool:
-        """Return True for a stopped queue, which schedules no jobs (flux queue stop)."""
-        return str(state).endswith(":Stopped")
+        """Return True for a stopped queue, or one paused by a stopped parent: neither schedules jobs."""
+        return str(state).endswith((":Stopped", ":Paused"))
 
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
@@ -116,7 +117,7 @@ class FluxBatchSystem(GenericBatchSystem):
         return [job["id"] for job in jobs], [job["user"] for job in jobs], [job["state"] for job in jobs], [job["queue"] for job in jobs]
 
     def get_queues_info(self) -> "QueuesInfo":
-        """Return each queue's running and queued (S or P) jobs; state is Enabled|Disabled:Started|Stopped."""
+        """Return each queue's running and queued (S or P) jobs; state is Enabled|Disabled:Started|Stopped|Paused."""
         queues: Dict[str, Any] = OrderedDict()
         for name, state in self._queues():
             queues[name] = {"queue_name": name, "run": 0, "queued": 0, "lm": "--", "state": state}
@@ -214,16 +215,16 @@ class FluxBatchSystem(GenericBatchSystem):
         return states
 
     def _queues(self) -> List[Tuple[str, str]]:
-        """Return (name, Enabled|Disabled:Started|Stopped) per queue; the anonymous queue is named default."""
+        """Return (name, Enabled|Disabled:Started|Stopped|Paused) per queue; the anonymous queue is named default."""
         queues = []
-        marks = {"✔": True, "✗": False}
-        for line in self._lines("queues_file"):
+        enabled, started = {"y": "Enabled", "n": "Disabled"}, {"y": "Started", "n": "Stopped", "p": "Paused"}
+        for line in self._lines("queues_file") if self.files.get("queues_file") else []:
             fields = line.split()
             if len(fields) == 2:
                 fields.insert(0, DEFAULT_QUEUE)
-            if len(fields) != 3 or fields[1] not in marks or fields[2] not in marks:
+            if len(fields) != 3 or fields[1] not in enabled or fields[2] not in started:
                 raise SchedulerInputError("Unsupported flux queue list line %r" % line)
-            queues.append((fields[0], "%s:%s" % ("Enabled" if marks[fields[1]] else "Disabled", "Started" if marks[fields[2]] else "Stopped")))
+            queues.append((fields[0], "%s:%s" % (enabled[fields[1]], started[fields[2]])))
         return queues
 
     def _jobs(self) -> List[Dict[str, Any]]:
