@@ -347,6 +347,10 @@ def _validate_commands(config: Any) -> None:
             _require(", " in command and all(part.strip() for part in command.split(", ", 1)), path, "a filename, command pair")
     for name, command in config["signature_commands"].items():
         _text(command, "signature_commands.%s" % name)
+    order = config.get("detection_order", [])
+    _require(isinstance(order, list), "detection_order", "a list of backend names")
+    for index, name in enumerate(order):
+        _text(name, "detection_order[%d]" % index)
     info = config.get("extract_info")
     if info:
         _mapping(info, "extract_info")

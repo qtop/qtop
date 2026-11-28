@@ -55,7 +55,7 @@ invoking it in demo mode:
 ```
 
 When used, the ``-b`` switch must always be followed by one of the
-supported batch systems (pbs, sge, oar, slurm, slurm_json, lsf, htcondor, demo).
+supported batch systems; ``qtop --list-backends`` names them, with their commands.
 
 That should create and destroy fictional jobs in fictional machines from
 fictional users, and display all that in a colorful but not yet very
@@ -734,9 +734,10 @@ node columns preserve configured GRES and GRES usage. These raw fields are
 available in JSON; GPU occupancy rendering is not implemented yet. Named
 fields use width zero so long resource descriptions are not truncated.
 
-GPU metadata is also normalized into node fields `slurm_gpu_configured`,
-`slurm_gpu_used`, and (when job detail records are available)
-`slurm_gpu_bindings`. Each resource has `type`, `count`, `device_indices`,
+GPU metadata is also normalized into the scheduler-neutral node fields
+`gpu_configured`, `gpu_used`, and (when job detail records are available)
+`gpu_bindings`, which any backend may fill (Flux does) and which exports before
+0.9.20261127 named `slurm_gpu_*`; qtop renames those when it reads them. Each resource has `type`, `count`, `device_indices`,
 `mig_profile`, and `parent_gpu_uuid`; bindings additionally have `job_id`.
 Bindings come only from per-node `GRES=` records in `scontrol --details show jobs`,
 never from requested TRES or aggregate node usage. Multiple jobs can retain
@@ -775,8 +776,9 @@ scontrol --details show jobs
 For offline input, save that output as `scontrol.txt` alongside `squeue.txt`
 and `sinfo.txt`; qtop discovers it automatically. The file is optional.
 Missing, failed, malformed or inconsistent details use the existing estimated
-placement. Each node exports `cpu_allocation_source` (`slurm`, `estimated`, or
-`none`); the scheduler messages block identifies estimates. Valid detail records use
+placement. Each node exports the scheduler-neutral `cpu_allocation_source` (`scheduler`,
+`estimated`, or `none`; older exports say `slurm` for `scheduler`); a shared note in
+the scheduler messages block identifies estimates, for every backend that sets it. Valid detail records use
 Slurm abstract CPU IDs, which are not Linux CPU IDs or task affinity masks.
 Overlapping allocations also use estimates because the current core map can
 represent only one job per CPU. Estimated placement fills available capacity
@@ -892,11 +894,13 @@ sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUse
 
 qtop also has a scheduler-type discovery system, meaning it will try to
 guess which scheduler system is installed in your system. Each backend
-declares the command that characterises it (``signature_command``) and a
-``detection_priority``: Slurm (``sinfo``) first, then Slurm JSON, PBS
-(``pbsnodes``), OAR, SGE, LSF and HTCondor, so that an unrelated ``qstat``
-command does not mask an available ``sinfo`` command. Override one in a
-configuration layer:
+declares the command that characterises it (``signature_command``), and
+``detection_order`` in ``qtopconf.yaml`` says which to try first: Slurm
+(``sinfo``), then Slurm JSON, PBS (``pbsnodes``), OAR, SGE, LSF, HTCondor and
+Flux, so that the ``pbsnodes`` and ``qstat`` of Slurm's torque wrappers do not
+mask an available ``sinfo``. Backends not listed are tried after the listed
+ones. A configuration layer replaces the whole list, and overrides a signature
+command per backend:
 
 ```yaml
 ---
@@ -1180,8 +1184,8 @@ checkout.
 
 ### Input selection
 
--  ``-b SYSTEM`` selects the scheduler backend. Common values are
-   ``demo``, ``pbs``, ``sge``, ``oar``, ``slurm``, ``slurm_json``, ``lsf`` and ``htcondor``.
+-  ``-b SYSTEM`` selects the scheduler backend, e.g. ``slurm`` or ``demo``; ``qtop
+   --list-backends`` prints every backend with its default commands.
 -  ``-s DIRECTORY`` / ``--SetSourceDir`` reads scheduler output files from
    ``DIRECTORY`` instead of running commands. Passing an existing output file
    selects its parent directory; qtop still needs all files for that backend.
@@ -1718,6 +1722,51 @@ offered for HTCondor and are listed as omitted; `-A` exports are anonymized.
 The backend is built from documented JSON output and synthetic traces in
 `tests/plugins/htcondor_samples/`; it has not yet been checked against a live pool.
 
+### Flux backend
+
+`-b flux` reads a Flux instance through the `flux` command; autodetection
+selects it last, when `flux` is on the `PATH` and no other scheduler is. (The
+FluxCD Kubernetes tool is also called `flux`: pass `-b` explicitly there.) Each
+frame runs (see `qtopconf.yaml`):
+
+```console
+flux jobs -A --json
+flux resource R
+flux resource list -no '{state} {rlist}'
+flux resource status -no '{state} {nodelist}'
+flux queue list -no '{queue} {enabled.ascii} {started.ascii}'
+./qtop -b flux -s tests/plugins/flux_samples/basic -F
+```
+
+- **Nodes** are the instance's broker ranks, named and sized by `flux resource
+  R`. `flux resource status` gives the state: `avail` is `-`, `draining`,
+  `drained` and `exclude` are `o`, `torpid` is `s`, `housekeeping` is `b`, and
+  any state marked `*` (broker offline) is down, `d`.
+- **Jobs** are the active jobs of all users, by the f58 ID `flux jobs` prints, with
+  the state letters `flux jobs` prints (`D`, `P`, `S`, `R`, `C`); a held job is
+  `S`, as there.
+- **Cores**: the allocated cores of each node come from `flux resource list`, and
+  are exact. A job's own cores (its R) are readable only by its owner and the
+  instance owner, so each running job takes its share of its nodes' allocated
+  cores (`ncores` over `nnodes`). On a node that runs one job this is exact
+  (`cpu_allocation_source: scheduler`); where jobs share a node, which job holds
+  which core is estimated (`estimated`, with the shared placement note), and an
+  allocated core with no listed job is `?`.
+- **GPUs** come from `flux resource R` and the allocated line of `flux resource
+  list` into the neutral `gpu_*` fields, so the node matrix and `accelerator_map`
+  show them. A node's GPUs in use are bound to its job when it runs alone there;
+  on a shared node their holder is `?`, as no job's GPU count is visible to users.
+- **Queues** come from `flux queue list`; a stopped queue, or one paused by a
+  stopped parent, is blocked (`*`). An instance without named queues has one
+  anonymous queue, shown as `default`. That trace is optional: a flux-core too
+  old for `{enabled.ascii}` still shows the queues its jobs name.
+
+Masked source traces (`--masked-traces`) are not offered for Flux and are listed
+as omitted; `-A` exports are anonymized. The samples in `tests/plugins/flux_samples/`
+(`basic`, and `gpu_shared` with GPUs and shared nodes) were captured from flux-core
+0.91 test instances; they have not yet been checked against a multi-user system
+instance.
+
 ## Using qtop as a library
 
 `qtop_py.core_api` is the public interface of qtop's scheduler core. It collects a
@@ -1744,8 +1793,7 @@ with tempfile.TemporaryDirectory() as workdir:
 
 - `collect_state(backend, workdir, options=None, commands=None, config=None, timeout=...,
   cancel=None, env=None)` returns the validated state. `backend` is a backend class
-  (`SlurmBatchSystem`, `PBSBatchSystem`, `SGEBatchSystem`, `OARBatchSystem`,
-  `LSFBatchSystem`, `HTCondorBatchSystem`, `SlurmJSONBatchSystem` in `qtop_py.plugins.*`, or
+  (any `GenericBatchSystem` subclass in `qtop_py.plugins.*`, e.g. `SlurmBatchSystem`, or
   your own). `workdir` must exist and receives the live traces; `SOURCEDIR` traces are read in place. `env` is required to run
   commands, so the core never reads the environment by itself.
 - `collect(...)` takes the same arguments plus `files=` (trace paths by key, when the
@@ -1795,8 +1843,9 @@ field) is reported as a possible qtop bug.
 
 A backend is self-standing: its module declares, on the class, `default_commands`
 (trace key to `"output file, command"`), the `signature_command` that `-b auto` looks
-for, a `detection_priority` and its `state_abbreviations`. `schedulers/registry.py`
-finds every `GenericBatchSystem` subclass defined in a `qtop_py/plugins/` module, so
+for and its `state_abbreviations`. Where `-b auto` tries it among the others is a site
+choice, `detection_order` in `qtopconf.yaml`; an unlisted backend comes after the
+listed ones. `schedulers/registry.py` finds every `GenericBatchSystem` subclass defined in a `qtop_py/plugins/` module, so
 there is nothing to register; other packages add backends through the
 `qtop.backends` entry-point group (Python 3.8+). Configuration layers override the
 declared defaults per key, and matrix rows without a `systems:` list (the default
@@ -1804,12 +1853,10 @@ ones) already apply to it. Its own command-line switches come from the
 `add_cli_options(parser)` and `check_cli_options(parser, args)` hooks, as Slurm's
 `--all`, `--slurm-summary` and `--slurm-json-squeue` do; the backend reads them with
 `getattr` and a default, and `core_api.BackendOptions(**options)` passes them without
-the CLI. Then:
-
-1. Add the default commands to the commented list in `qtopconf.yaml`
-   (`tests/test_backend_discovery.py` checks the copy).
-2. Commit sample traces and their cases in `tools/validate_scheduler_samples.py`; the
-   sample gate runs every registered backend and fails without them.
+the CLI; `qtop --list-backends` prints its declared commands. Then commit sample
+traces in `tests/plugins/<mnemonic>_samples/<case>/`, each with a `sample-gate.json`
+giving its extra arguments and expected output markers; the sample gate finds them,
+runs every registered backend and fails without them.
 
 If its jobs or nodes carry fields beyond the neutral schema (array IDs, slot
 counts, job lists on nodes), describe them in one `ExtensionSpec`
@@ -1818,8 +1865,22 @@ to it when plugins share it, as `plugins/slurm_extension.py` does. Set the plugi
 `extensions` to it and take `node_job_fields` from it; `schedulers/metadata.py`
 collects the specs of all registered backends. Validation, `-A` masking and the idle
 test then cover those fields for every state, including replayed and `--load-sample`
-ones.
+ones. Parser counters the backend leaves in `self.diagnostics` (or returns from
+`cluster_diagnostics()`) are stored under the spec's diagnostics key. Type the fields
+next to the spec, as `SlurmJob` and `SlurmNode` subclass `Job` and `Node` in
+`plugins/slurm_extension.py`; `core_state_types.py` holds only neutral ones.
 
 `tests/test_plugin_conformance.py` runs for every registered backend. It fails
 until the steps above are done, and it checks each committed sample through export,
 validation, replay and `-A` (no user name may survive anonymization).
+
+A backend in another package runs the same contract from `qtop_py.testing` on its
+own traces: `check_backend(MyBatchSystem)` checks its declarations and extension
+spec, and `check_sample(MyBatchSystem, trace_dir, workdir)` builds, validates,
+replays and anonymizes a state, each raising `AssertionError` with what to fix.
+
+Some node fields are scheduler-neutral, so any backend may fill them and qtop
+validates, masks, counts and displays them alike (`schedulers/resources.py`):
+`gpu_configured`, `gpu_used` and `gpu_bindings` (GPUs, TPUs and NPUs, shown in the
+node matrix and by `accelerator_map`), and `cpu_allocation_source` (`scheduler`,
+`estimated` or `none`, with a shared placement note).

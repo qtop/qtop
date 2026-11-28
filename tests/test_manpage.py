@@ -33,3 +33,11 @@ def test_manpage_has_an_options_entry_for_every_command_line_option():
 
 def test_manpage_names_the_current_version():
     assert '"qtop %s"' % __version__ in MANPAGE
+
+
+def test_manpage_lists_every_registered_backend_for_b():
+    from qtop_py.schedulers import registry
+
+    entry = MANPAGE.split(".BI -b ", 1)[1].split("\n(as", 1)[0]  # the names before "(as --list-backends prints them"
+    listed = re.findall(r"^\.BR? (\w+)", entry, re.M)
+    assert listed == sorted(registry.discover_qtop_batch_systems()), "list each backend under -b in docs/qtop.1, by name"

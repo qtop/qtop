@@ -58,7 +58,6 @@ def parse_exec_host(value: str) -> "OrderedDict[str, int]":
 class LSFBatchSystem(GenericBatchSystem):
     """LSF backend."""
 
-    detection_priority = 3  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4
     signature_command = "bhosts"
     default_commands = {
         # Hosts and queues as wide whitespace tables; jobs with a named, '|'-delimited header.

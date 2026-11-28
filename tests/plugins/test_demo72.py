@@ -10,6 +10,7 @@ from qtop_py.core_api import BackendOptions
 from qtop_py.core_cluster_state import validate_cluster_state
 from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins import demo72
+from qtop_py.schedulers import resources
 from qtop_py.schedulers.gpu import accelerator_map_lines
 
 
@@ -26,13 +27,13 @@ def test_every_round_is_a_valid_rack(seed, monkeypatch):
     nodes = state["nodes"]
     assert [node["domainname"] for node in nodes] == ["tray%02d" % tray for tray in range(1, 19)]
     for node in nodes:
-        assert node["np"] == 144 and node["slurm_gpu_configured"][0]["count"] == 4
+        assert node["np"] == 144 and node["gpu_configured"][0]["count"] == 4
         if node["state"] == "d":
-            assert not node["core_job_map"] and "slurm_gpu_used" not in node
+            assert not node["core_job_map"] and "gpu_used" not in node
             assert accelerator_map_lines([node]) == ["%s: gpu0-3=?" % node["domainname"]]
             continue
-        used = node["slurm_gpu_used"][0]
-        bound = {index for binding in node.get("slurm_gpu_bindings", []) for index in binding["device_indices"]}
+        used = node["gpu_used"][0]
+        bound = {index for binding in node.get("gpu_bindings", []) for index in binding["device_indices"]}
         assert bound <= set(used["device_indices"])  # a binding always sits on a used GPU
         cores = {core // demo72.CORES_PER_GPU for core in node["core_job_map"]}
         assert cores == set(used["device_indices"])  # 36 cores per allocated GPU
@@ -71,5 +72,5 @@ def test_anonymized_rounds_mask_jobs_and_keep_the_gpus(monkeypatch):
 def test_notes_name_the_rack_and_list_the_accelerators(monkeypatch):
     _, state = state_for(9, monkeypatch)
     assert "GB200 NVL72" in demo72.Demo72BatchSystem.display_messages("placement", None, state["nodes"], {})[0]
-    lines = demo72.Demo72BatchSystem.display_messages("accelerators", None, state["nodes"], {})
+    lines = resources.messages("accelerators", state["nodes"], {})
     assert lines[0] == "INFO: Accelerators by node (job IDs, ? = unknown):" and len(lines) == 19

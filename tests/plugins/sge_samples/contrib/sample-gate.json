@@ -1,0 +1,45 @@
+{
+  "source": "qtop_py/contrib",
+  "args": [
+    "-Fadvv"
+  ],
+  "markers": [
+    "Summary : Total:17 Up:17 Free:4 Nodes",
+    "61/408 cpus",
+    "93=62+31+0 jobs",
+    "Worker Nodes occupancy",
+    "User accounts and pool mappings"
+  ],
+  "colour_expectations": [
+    {
+      "semantic": "mapped user",
+      "text": "alicesgm",
+      "colour": "Cyan",
+      "sgr": "0;36"
+    },
+    {
+      "semantic": "mapped queue",
+      "text": "alice",
+      "colour": "Red_L",
+      "sgr": "1;31"
+    },
+    {
+      "semantic": "running node state",
+      "text": "r",
+      "colour": "Blue",
+      "sgr": "0;34"
+    },
+    {
+      "semantic": "held node state",
+      "text": "hqw",
+      "colour": "PurpleOnGrayBG",
+      "sgr": "0;35;40"
+    },
+    {
+      "semantic": "unavailable node state",
+      "text": "au",
+      "colour": "BlackOnRed",
+      "sgr": "0;30;41"
+    }
+  ]
+}

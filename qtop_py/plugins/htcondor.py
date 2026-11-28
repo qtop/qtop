@@ -46,7 +46,6 @@ def _count(value: Any, default: int = 0) -> int:
 class HTCondorBatchSystem(GenericBatchSystem):
     """HTCondor backend; accounting groups stand in for queues."""
 
-    detection_priority = 4  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4
     signature_command = "condor_status"
     default_commands = {
         # JSON ClassAds; condor_q asks the local schedd (use -global for every schedd in the pool).

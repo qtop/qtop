@@ -180,7 +180,6 @@ class SGEStatExtractor(StatExtractor):
 class SGEBatchSystem(GenericBatchSystem):
     """SGE backend."""
 
-    detection_priority = 2  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4
     signature_command = "qacct"
     default_commands = {
         "sge_file": "%(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'",

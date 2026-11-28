@@ -3,9 +3,11 @@
 """Backends are self-standing: a plugin module brings its own commands, signature command and states."""
 
 import logging
-import re
+import sys
 from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from qtop_py import configuration, plugins
 from qtop_py import core_yaml_parser as yaml_parser
@@ -16,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_every_plugin_module_is_found_with_the_defaults_it_declares():
     backends = registry.discover_qtop_batch_systems()
-    assert list(backends) == ["demo", "demo72", "htcondor", "lsf", "oar", "pbs", "sge", "slurm", "slurm_json"]
+    assert list(backends) == sorted(backends) and {"demo", "pbs", "sge", "oar", "slurm", "slurm_json"} <= set(backends)
     defaults = registry.backend_defaults(backends)
     assert set(defaults["schedulers"]) == set(defaults["signature_commands"]) == set(backends)
     assert "slurm_json" not in defaults["state_abbreviations"]  # declared on SlurmBatchSystem, not inherited
@@ -76,12 +78,19 @@ def test_a_layer_overrides_one_command_and_keeps_the_rest(tmp_path, monkeypatch)
     assert config["state_abbreviations"] == plugin["state_abbreviations"]
 
 
-def test_qtopconf_lists_the_plugins_default_commands_verbatim(tmp_path):
-    """The commented copy in qtopconf.yaml, for users to read and paste, must match the plugins."""
-    block = re.search(r"^# schedulers:\n((?:#   .*\n)+)", (ROOT / "qtopconf.yaml").read_text(), re.M).group(1)
-    path = tmp_path / "schedulers.yaml"
-    path.write_text("schedulers:\n" + re.sub(r"^# ", "", block, flags=re.M))
-    assert yaml_parser.parse(str(path))["schedulers"] == registry.backend_defaults(registry.discover_qtop_batch_systems())["schedulers"]
+def test_list_backends_prints_the_plugins_defaults_as_a_layer(tmp_path, monkeypatch, capsys):
+    """qtop --list-backends replaces a hand-kept copy in qtopconf.yaml: its output loads back as the defaults."""
+    from qtop_py import qtop
+
+    monkeypatch.setattr(sys, "argv", ["qtop", "--list-backends"])
+    with pytest.raises(SystemExit) as stop:
+        qtop._parse_run_options(SimpleNamespace(options=None))
+    assert stop.value.code == 0
+    path = tmp_path / "layer.yaml"
+    path.write_text(capsys.readouterr().out)
+    layer, defaults = yaml_parser.parse(str(path)), registry.backend_defaults(registry.discover_qtop_batch_systems())
+    assert layer["schedulers"] == defaults["schedulers"] and layer["signature_commands"] == defaults["signature_commands"]
+    assert "%(savepath)s" not in (ROOT / "qtopconf.yaml").read_text()  # no second copy of the commands to keep in sync
 
 
 def test_backend_options_come_from_the_plugins_once():

@@ -129,7 +129,7 @@ def node_devices(node: "Mapping[str, Any]", kind: str) -> List[int]:
     Configured GRES without indices, e.g. gpu:a100:4(S:0-1), number their devices from 0, as Slurm does.
     """
     devices: List[int] = []
-    for resource in node.get("slurm_gpu_configured") or []:
+    for resource in node.get("gpu_configured") or []:
         if resource_kind(resource) != kind or resource["mig_profile"] is not None:
             continue
         indices = resource["device_indices"]
@@ -144,7 +144,7 @@ def node_slices(node: "Mapping[str, Any]", kind: str) -> List[int]:
     """Return the MIG slice indices of a kind configured on a node; slices without indices follow its whole devices."""
     taken = node_devices(node, kind)
     slices: List[int] = []
-    for resource in node.get("slurm_gpu_configured") or []:
+    for resource in node.get("gpu_configured") or []:
         if resource_kind(resource) != kind or resource["mig_profile"] is None:
             continue
         indices = resource["device_indices"]
@@ -157,13 +157,13 @@ def node_slices(node: "Mapping[str, Any]", kind: str) -> List[int]:
 
 def slice_jobs(node: "Mapping[str, Any]", kind: str, index: int) -> List[str]:
     """The IDs of the jobs whose GRES indices on the node include the MIG slice."""
-    bindings = node.get("slurm_gpu_bindings", [])
+    bindings = node.get("gpu_bindings", [])
     return sorted({b["job_id"] for b in bindings if resource_kind(b) == kind and b.get("mig_profile") is not None and index in (b.get("device_indices") or [])})
 
 
 def _device_jobs(node: "Mapping[str, Any]", kind: str, index: int) -> List[str]:
     """The IDs of the jobs whose GRES indices on the node include the whole device."""
-    bindings = node.get("slurm_gpu_bindings", [])
+    bindings = node.get("gpu_bindings", [])
     return sorted({b["job_id"] for b in bindings if resource_kind(b) == kind and b.get("mig_profile") is None and index in (b.get("device_indices") or [])})
 
 
@@ -173,7 +173,7 @@ def _whole_device_usage(node: "Mapping[str, Any]", kind: str) -> "Tuple[bool, Li
     Only whole-device entries say which whole devices are idle: MIG slices in use do not, since they may sit on any
     of them, but beside a whole-device entry they say nothing of the whole devices it covers.
     """
-    used = [resource for resource in node.get("slurm_gpu_used") or [] if resource_kind(resource) == kind]
+    used = [resource for resource in node.get("gpu_used") or [] if resource_kind(resource) == kind]
     whole = [resource for resource in used if resource["mig_profile"] is None]
     known = bool(whole) and all(resource["count"] == 0 or resource["device_indices"] is not None for resource in whole)
     return known, [index for resource in whole for index in resource["device_indices"] or []]

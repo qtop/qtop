@@ -25,6 +25,7 @@ from qtop_py.mvu import MVU_compress_colored_line as compress_colored_line
 from qtop_py.mvu import MVU_gauge_core_vectors as gauge_core_vectors
 from qtop_py.mvu import MVU_queue_layout
 from qtop_py.mvu_query import WNOccupancy
+from qtop_py.schedulers import resources
 from qtop_py.ui.terminal import capture_terminal
 from qtop_py.ui.viewport import terminal_rows
 from qtop_py.user_details import user_detail_option
@@ -108,7 +109,7 @@ def accelerator_lines(display: Any) -> List[str]:
     if display.config.get("accelerator_map", "off") == "off":
         return []
     nodes = getattr(display.cluster, "worker_nodes", [])
-    return list(display.MVU_model.backend.display_messages("accelerators", display.snapshot, nodes, display.config))
+    return resources.messages("accelerators", nodes, display.config) + list(display.MVU_model.backend.display_messages("accelerators", display.snapshot, nodes, display.config))
 
 
 class TextDisplay(object):
@@ -305,7 +306,8 @@ class TextDisplay(object):
         """Print the scheduler's notes, if any, under Scheduler messages."""
         backend = self.MVU_model.backend
         nodes = getattr(self.cluster, "worker_nodes", [])
-        lines = [line for section in ("snapshot", "accounting", "placement", "resources") for line in backend.display_messages(section, self.snapshot, nodes, self.config)]
+        sections = ("snapshot", "accounting", "placement", "resources")
+        lines = [line for section in sections for line in resources.messages(section, nodes, self.config) + backend.display_messages(section, self.snapshot, nodes, self.config)]
         if not getattr(self, "_accelerators_shown", False):  # no node matrix (-2): keep them with the notes
             lines.extend(accelerator_lines(self))
         if hasattr(self.snapshot, "_collection_age"):

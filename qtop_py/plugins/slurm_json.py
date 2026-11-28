@@ -225,7 +225,6 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         "jobs_json": "%(savepath)s/slurm_jobs%(pid)s.json, scontrol --json show jobs",
     }
 
-    detection_priority = -1
     display_scheduler = "slurm"
     collection_interval = 20.0
     fallback_backend = SlurmBatchSystem
@@ -317,7 +316,7 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
                 else SlurmStatExtractor._map_node_state(state.split("+")[0])
             )
             self._gpu_inventory[name] = {}
-            for source, target in (("gres", "slurm_gpu_configured"), ("gres_used", "slurm_gpu_used")):
+            for source, target in (("gres", "gpu_configured"), ("gres_used", "gpu_used")):
                 gres = row.get(source)
                 if gres is not None:
                     if not isinstance(gres, str):
@@ -493,14 +492,14 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
             if len(cpus) != count or any(cpu in mapping for cpu in cpus):
                 raise SchedulerInputError("Slurm CPU allocations overlap or exceed representable capacity")
             mapping.update((cpu, job_id) for cpu in cpus)
-            node["cpu_allocation_source"] = "estimated" if not exact or node["cpu_allocation_source"] == "estimated" else "slurm"
+            node["cpu_allocation_source"] = "estimated" if not exact or node["cpu_allocation_source"] == "estimated" else "scheduler"
 
     def _apply_gpu_allocations(self, worker_nodes: Dict[str, Dict[str, Any]], job_hosts: Any = None) -> None:
         for host, node in worker_nodes.items():
             node.update(self._gpu_inventory[host])
         for job_id, hosts in self._bindings.items():
             for host, resources in hosts.items():
-                worker_nodes[host].setdefault("slurm_gpu_bindings", []).extend(dict(resource, job_id=job_id) for resource in resources)
+                worker_nodes[host].setdefault("gpu_bindings", []).extend(dict(resource, job_id=job_id) for resource in resources)
 
     def get_cluster_state(self, options: "Options") -> "ClusterState":
         """Reuse Slurm accounting and preserve otherwise empty partitions."""

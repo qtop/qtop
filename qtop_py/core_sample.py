@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 from qtop_py import core_safety as safety
 from qtop_py.core_cluster_state import validate_cluster_state
+from qtop_py.schedulers import resources
 from qtop_py.schedulers.metadata import job_identity, mask_job_extensions, mask_node_extensions
 
 SNAPSHOT_NAME: "Final" = "qtop-snapshot.json"
@@ -103,6 +104,7 @@ def anonymize_state(state: object) -> "Tuple[ClusterState, IdentifierMaps]":
         for node in state["nodes"]
     ]
     for original, node in zip(original_nodes, state["nodes"]):
+        resources.mask_node(original, cast("Dict[str, object]", node), job_id)
         mask_node_extensions(original, node, job_id, mask)
     if "source" in state:  # schema 2: qids are rebuilt from the masked cluster ID and masked native IDs
         original_prefix = "%s:%s:" % (state["source"]["backend"], state["source"]["cluster_id"])

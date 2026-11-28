@@ -59,16 +59,16 @@ def test_bindings_survive_export_replay_and_anonymization(tmp_path):
     slurm = backend(tmp_path, "JobId=101\n Nodes=node1 CPU_IDs=0-1 GRES=gpu:h100_nvl:1(IDX:7)\nJobId=102\n Nodes=node1 CPU_IDs=2 GRES=gpu:h100_1g.12gb:1(IDX:8)\n")
     state = slurm.get_cluster_state(slurm.options)
     node = state["nodes"][0]
-    bindings = node["slurm_gpu_bindings"]
+    bindings = node["gpu_bindings"]
     assert [(binding["job_id"], binding["device_indices"]) for binding in bindings] == [("101", [7]), ("102", [8])]
     assert bindings[1]["mig_profile"] == "1g.12gb"
-    assert node["slurm_gpu_configured"][0]["count"] == 8
-    assert node["slurm_gpu_used"][0]["device_indices"] == [0, 7]
+    assert node["gpu_configured"][0]["count"] == 8
+    assert node["gpu_used"][0]["device_indices"] == [0, 7]
     decoded = json.loads(json.dumps(state))
     assert validate_cluster_state(decoded) == decoded
     assert Snapshot.from_cluster_state(decoded).to_cluster_state() == decoded
     masked, mappings = anonymize_state(state)
-    masked_bindings = masked["nodes"][0]["slurm_gpu_bindings"]
+    masked_bindings = masked["nodes"][0]["gpu_bindings"]
     assert [binding["job_id"] for binding in masked_bindings] == [mappings["job"][job] for job in ("101", "102")]
     assert masked_bindings[1]["mig_profile"] == "1g.12gb"
     assert all(binding["type"] is None and binding["parent_gpu_uuid"] is None for binding in masked_bindings)
@@ -89,14 +89,14 @@ def test_bindings_survive_export_replay_and_anonymization(tmp_path):
 def test_invalid_or_stale_allocations_never_create_bindings(tmp_path, details):
     slurm = backend(tmp_path, details)
     state = slurm.get_cluster_state(slurm.options)
-    assert "slurm_gpu_bindings" not in state["nodes"][0]
+    assert "gpu_bindings" not in state["nodes"][0]
 
 
 @pytest.mark.parametrize("field,value", [("count", -1), ("count", True), ("device_indices", [True]), ("device_indices", [1, 1]), ("mig_profile", "arbitrary"), ("job_id", None)])
 def test_imported_gpu_bindings_are_validated(tmp_path, field, value):
     slurm = backend(tmp_path, "JobId=101\n Nodes=node1 GRES=gpu:1(IDX:0)\n")
     state = slurm.get_cluster_state(slurm.options)
-    state["nodes"][0]["slurm_gpu_bindings"][0][field] = value
+    state["nodes"][0]["gpu_bindings"][0][field] = value
     with pytest.raises(ValueError):
         validate_cluster_state(state)
 
@@ -111,14 +111,14 @@ def test_eight_h100_nvl_nodes_keep_bindings_local(tmp_path):
     state = slurm.get_cluster_state(slurm.options)
     assert len(state["nodes"]) == 8
     for node in state["nodes"]:
-        assert node["slurm_gpu_configured"][0]["count"] == 8
-        assert node["slurm_gpu_bindings"][0]["device_indices"] == [7]
-        assert node["slurm_gpu_bindings"][0]["job_id"] == "101"
+        assert node["gpu_configured"][0]["count"] == 8
+        assert node["gpu_bindings"][0]["device_indices"] == [7]
+        assert node["gpu_bindings"][0]["job_id"] == "101"
 
 
 def test_shared_device_retains_each_job_binding(tmp_path):
     slurm = backend(tmp_path, "JobId=101\n Nodes=node1 GRES=gpu:1(IDX:7)\nJobId=102\n Nodes=node1 GRES=gpu:1(IDX:7)\n")
-    bindings = slurm.get_cluster_state(slurm.options)["nodes"][0]["slurm_gpu_bindings"]
+    bindings = slurm.get_cluster_state(slurm.options)["nodes"][0]["gpu_bindings"]
     assert [(binding["job_id"], binding["device_indices"]) for binding in bindings] == [("101", [7]), ("102", [7])]
 
 

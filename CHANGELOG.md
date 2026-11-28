@@ -3,16 +3,35 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261127
+
+- CI: scorecard.yml defaults to contents: read like the other workflows, not read-all (Sonar S8234)
+- Docs: sonar-review.md records the e880da9 scan: scorecard permissions fixed, 12 findings as before
+- Docs: documentation.md describes -b flux and the backend guide's steps; ROADMAP tracks Flux
+- Docs: qtop.1 lists every backend under -b again; a test keeps it equal to the registered ones
+- Feature: Flux backend (-b flux) reads flux jobs/resource/queue output; traces from flux-core 0.91
+- Feature: qtop --list-backends prints each backend's commands, as a qtopconf.yaml layer to copy
+- Feature: Flux GPUs show in the node matrix and accelerator_map; a sample has GPUs and shared nodes
+- Feature: qtop_py.testing lets a backend in another package check qtop's contract on its traces
+- Refactor: each sample directory holds its sample-gate.json case; no central table to edit
+- Refactor: -b auto tries backends in qtopconf.yaml's detection_order; plugins carry no priority
+- Refactor: qtopconf.yaml keeps no copy of backend commands; of the docs, only qtop.1 lists backends
+- Refactor: backends type their own fields; the base class stores each one's diagnostics
+- Refactor: node fields gpu_* and cpu_allocation_source are neutral; slurm_gpu_*/slurm still load
+- Refactor: the CUE schema accepts flux_diagnostics beside the Slurm and OAR counters
+- Tests: tests/plugins/test_flux.py, the plugin contract and the sample gate cover the Flux backend
+- Release: update version metadata to 0.9.20261127
+
 ## 0.9.20261126
 
+- Bugfix: bad scheduler command entries name their key; backend bugs no longer pass as config errors
+- Bugfix: htcondor rejects CPU counts over 65536 instead of hanging; oar names a bad resource ID
+- Bugfix: node cores outside 0..np-1 are rejected as bad input, not a display crash (PBS fuzzing)
 - Cleanup: drop fileutils.safe_exit_with_file_close, which nothing called but its own test
 - Docs: documentation.md and qtop.1 cover Slurm 26.11 serializer/xjson and --strict for slurm_json
 - Feature: --strict replaces --demanding (kept as an alias) and also stops on non-strict Slurm JSON
 - Feature: backends raise SchedulerInputError; other ValueErrors are reported as possible qtop bugs
 - Feature: slurm_json reads xjson complex/json6 tokens (NaN, -NaN, \xNN), warning once per run
-- Fix: bad scheduler command entries name their key; backend bugs no longer pass as config errors
-- Fix: htcondor rejects CPU counts over 65536 instead of hanging; oar names a bad resource ID
-- Fix: node cores outside 0..np-1 are rejected as bad input, not a display crash (PBS fuzzing)
 - Refactor: CLI options stay as parsed; REMAP is Cluster.remap, -A -L masks GECOS/groups on read
 - Refactor: modules log via getLogger(__name__); ruff LOG015 now forbids logging.info() & co.
 - Refactor: slurm_json keeps per-version allocation layouts in a table, not v0.0.40 conditionals

@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from typing import Final
 
     from qtop_py.core_api import TraceMasker
-    from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,6 @@ OAR_EXTENSION: "Final" = ExtensionSpec(
 class OARBatchSystem(GenericBatchSystem):
     """OAR backend."""
 
-    detection_priority = 1  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4
     signature_command = "oarnodes"
     default_commands = {
         "oarnodes_s_file": "%(savepath)s/oarnodes_s_Y%(pid)s.txt, oarnodes -s -Y",
@@ -198,13 +197,6 @@ class OARBatchSystem(GenericBatchSystem):
         self.config = config
         self.options = options
         self.oar_stat_maker = OarStatExtractor(self.config, self.options)
-
-    def get_cluster_state(self, options: "Options") -> "ClusterState":
-        """Return the cluster state, with OAR allocation diagnostics when there are any."""
-        state = super().get_cluster_state(options)
-        if self.diagnostics:
-            state["oar_diagnostics"] = self.diagnostics.copy()
-        return state
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
         """Return the nodes with their resource states and jobs from oarnodes."""

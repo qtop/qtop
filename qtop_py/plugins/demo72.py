@@ -6,7 +6,7 @@ One NVLink domain: 18 compute trays, each with 4 GPUs and 2 Grace CPUs (144 core
 A large training job spans several whole trays, smaller jobs take 1, 2 or 4 GPUs of one tray,
 the odd tray is down, and one job's GPU details are missing, so its GPUs show as "?". The jobs
 change every PERIOD seconds, so watch mode (-w) moves. Nodes carry the Slurm GPU fields the
-slurm backends report (slurm_gpu_configured, slurm_gpu_used, slurm_gpu_bindings), so the
+slurm backends report (gpu_configured, gpu_used, gpu_bindings), so the
 accelerator map, -A, exports and replay treat them as they treat live Slurm data.
 """
 
@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 from qtop_py.core_api import GenericBatchSystem
 from qtop_py.plugins.slurm_extension import SLURM_EXTENSION
-from qtop_py.schedulers.gpu import ACCELERATOR_KINDS, accelerator_map_lines
 
 if TYPE_CHECKING:
     from typing import Final
@@ -149,23 +148,20 @@ class Demo72BatchSystem(GenericBatchSystem):
                 "np": GPUS_PER_TRAY * CORES_PER_GPU,
                 "core_job_map": {gpu * CORES_PER_GPU + core: job for gpu, job in owners.items() for core in range(CORES_PER_GPU)},
                 "slurm_node_state": "down" if down else "allocated" if len(owners) == GPUS_PER_TRAY else "mixed" if owners else "idle",
-                "cpu_allocation_source": "slurm",
-                "slurm_gpu_configured": [_gpu_resource(list(range(GPUS_PER_TRAY)), GPUS_PER_TRAY)],
+                "cpu_allocation_source": "scheduler",
+                "gpu_configured": [_gpu_resource(list(range(GPUS_PER_TRAY)), GPUS_PER_TRAY)],
             }
             if not down:  # a down tray reports no usage, so its GPUs show as unknown, not idle
-                node["slurm_gpu_used"] = [_gpu_resource(sorted(owners), len(owners))]
+                node["gpu_used"] = [_gpu_resource(sorted(owners), len(owners))]
             bindings = [dict(_gpu_resource([gpu], 1), job_id=job) for gpu, job in sorted(owners.items()) if job != self.sim.hidden_job]
             if bindings:
-                node["slurm_gpu_bindings"] = bindings
+                node["gpu_bindings"] = bindings
             nodes.append(node)
         return self.ensure_worker_nodes_have_qnames(nodes, job_ids, job_queues)
 
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
         """Return the accelerator map, and what the simulation stands for."""
-        if section == "accelerators":
-            lines = accelerator_map_lines(nodes, config.get("matrix_accelerators", ACCELERATOR_KINDS))
-            return ["INFO: Accelerators by node (job IDs, ? = unknown):"] + ["INFO: " + line for line in lines] if lines else []
         if section == "placement":
             return ["INFO: demo72 simulates one GB200 NVL72 rack (one NVLink domain): %s trays x %s GPUs, %s Grace cores per GPU." % (TRAYS, GPUS_PER_TRAY, CORES_PER_GPU)]
         return []

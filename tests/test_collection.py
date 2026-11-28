@@ -360,7 +360,7 @@ def test_slurm_summary_recollects_each_cycle_without_a_poller(frame_context, mon
     assert states[0]["jobs"][0]["user"] == "alice"
     assert states[1]["jobs"][0]["user"] == states[2]["jobs"][0]["user"] == "changed"
     assert states[0]["nodes"][0]["cpu_allocation_source"] == "estimated"
-    assert "slurm_gpu_bindings" not in states[0]["nodes"][0]
+    assert "gpu_bindings" not in states[0]["nodes"][0]
 
 
 @pytest.mark.parametrize("fails", [False, True], ids=["success", "command-failure"])

@@ -52,6 +52,8 @@ def config():
         ("sge_whole_queues", "world"),
         ("sge_whole_queues", [""]),
         ("sge_whole_queues", [1]),
+        ("detection_order", "slurm"),
+        ("detection_order", ["slurm", ""]),
         ("accounts_states", []),
         ("accounts_states", "running_of_user"),
         ("accounts_states", ["runing_of_user"]),

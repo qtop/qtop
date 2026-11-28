@@ -18,7 +18,7 @@ from qtop_py.core_serialiser import GenericBatchSystem
 from qtop_py.mvu import MVU_Model
 from qtop_py.plugins.slurm import SlurmArrayIdError
 from qtop_py.plugins.slurm_json import UnsupportedSlurmJSON
-from qtop_py.schedulers import collector, registry
+from qtop_py.schedulers import collector, registry, resources
 from qtop_py.ui import mvu_view
 
 
@@ -26,7 +26,6 @@ class CustomBackend(GenericBatchSystem):
     optional_trace_keys = ("detail_file",)
     optional_trace_aliases = {"detail_file": "native-details.txt"}
     node_job_fields = ("custom_job_ids",)
-    detection_priority = -10
     blocked_queue_note = " (custom queue policy)"
 
     @staticmethod
@@ -80,7 +79,9 @@ def test_plugin_controls_collection_optional_inputs_and_queue_policy(monkeypatch
 def test_plugin_controls_optional_live_failure_and_detection(monkeypatch, tmp_path, caplog):
     monkeypatch.setattr(registry, "PLUGIN_BATCH_SYSTEMS", (GenericCompetitor, CustomBackend))
     monkeypatch.setattr(registry.shutil, "which", lambda command: "/usr/bin/" + command)
-    assert registry.auto_get_avail_batch_system({"signature_commands": {"competitor": "other", "custom": "native"}}, registry.discover_qtop_batch_systems()) == "custom"
+    commands = {"signature_commands": {"competitor": "other", "custom": "native"}}
+    assert registry.auto_get_avail_batch_system(commands, registry.discover_qtop_batch_systems()) == "competitor"  # configuration order
+    assert registry.auto_get_avail_batch_system(dict(commands, detection_order=["custom"]), registry.discover_qtop_batch_systems()) == "custom"
 
     def fail(*args, **kwargs):
         raise qtop.OperationalError("optional client unavailable")
@@ -177,12 +178,13 @@ def test_detection_only_considers_explicit_registered_backends(monkeypatch, nati
     (
         ([], []),
         ([{"cpu_allocation_source": "estimated"}], ["WARNING"]),
-        ([{"cpu_allocation_source": "slurm"}], ["INFO"]),
-        ([{"cpu_allocation_source": "estimated", "slurm_unmapped_cpus": 2}, {"cpu_allocation_source": "slurm"}], ["WARNING", "INFO", "WARNING"]),
+        ([{"cpu_allocation_source": "scheduler"}], ["INFO"]),
+        ([{"cpu_allocation_source": "estimated", "slurm_unmapped_cpus": 2}, {"cpu_allocation_source": "scheduler"}], ["WARNING", "INFO", "WARNING"]),
     ),
 )
-def test_slurm_placement_message_severity(nodes, levels):
-    messages = qtop.scheduler_backend("slurm").display_messages("placement", SimpleNamespace(), nodes, {})
+def test_placement_notes_are_shared_and_slurm_adds_its_own(nodes, levels):
+    """The CPU placement source is a neutral note for every backend; Slurm adds what its matrix omits."""
+    messages = resources.messages("placement", nodes, {}) + qtop.scheduler_backend("slurm").display_messages("placement", SimpleNamespace(), nodes, {})
     assert [message.split(":", 1)[0] for message in messages] == levels
 
 

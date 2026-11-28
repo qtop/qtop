@@ -22,6 +22,7 @@ import pytest
 from mvu_support import explicit_model
 
 from qtop_py import configuration, user_details
+from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py import qtop as qtop_module
 from qtop_py import utils as qtop_utils
 from qtop_py.colormap import color_to_code
@@ -275,12 +276,19 @@ def test_scheduler_autodetection_fails_when_only_demo_is_available(monkeypatch):
         registry.auto_get_avail_batch_system(config, registry.discover_qtop_batch_systems())
 
 
-def test_scheduler_autodetection_prioritizes_slurm(monkeypatch):
-    available = {"qstat": "/site/bin/qstat", "sinfo": "/usr/bin/sinfo"}
+def test_scheduler_autodetection_follows_the_configured_detection_order(monkeypatch):
+    """qtopconf.yaml puts Slurm before PBS (Slurm's torque wrappers install pbsnodes); unlisted backends follow."""
+    config = configuration.with_backend_defaults(yaml_parser.parse(str(Path(__file__).resolve().parents[1] / "qtopconf.yaml")))
+    available = {"pbsnodes": "/usr/bin/pbsnodes", "qacct": "/usr/bin/qacct", "sinfo": "/usr/bin/sinfo", "flux": "/usr/bin/flux"}
     monkeypatch.setattr(registry.shutil, "which", available.get)
-    config = {"signature_commands": {"sge": "qstat", "slurm": "sinfo"}}
+    systems = registry.discover_qtop_batch_systems()
 
-    assert registry.auto_get_avail_batch_system(config, registry.discover_qtop_batch_systems()) == "slurm"
+    assert config["detection_order"][:3] == ["slurm", "slurm_json", "pbs"] and config["detection_order"][-1] == "flux"
+    assert registry.auto_get_avail_batch_system(config, systems) == "slurm"
+    configuration.merge_layer(config, {"detection_order": ["flux", "sge"]})  # a layer replaces the whole list
+    assert registry.auto_get_avail_batch_system(config, systems) == "flux"
+    configuration.merge_layer(config, {"detection_order": ["oar"]})  # listed but absent; the rest in configuration order
+    assert registry.auto_get_avail_batch_system(config, systems) == next(name for name, command in config["signature_commands"].items() if command in available)
 
 
 def test_experimental_features_require_explicit_opt_in(capsys):

@@ -65,7 +65,7 @@ from qtop_py.schedulers import collector as _collector
 from qtop_py.schedulers import registry as _registry
 from qtop_py.schedulers.collector import MVU_collect_snapshot as MVU_collect_snapshot
 from qtop_py.schedulers.collector import _collect_frame as _collect_frame
-from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS
+from qtop_py.schedulers.registry import PLUGIN_BATCH_SYSTEMS, describe_backends
 from qtop_py.schedulers.registry import discover_qtop_batch_systems as discover_qtop_batch_systems
 from qtop_py.ui import effects as ui_effects
 from qtop_py.ui import terminal as terminal_io
@@ -237,6 +237,9 @@ def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
     args = resources.options = utils.parse_qtop_cmdline_args()
     if args.version:
         print("qtop current version: " + __version__)
+        sys.exit(0)
+    if args.list_backends:
+        print("\n".join(describe_backends(discover_qtop_batch_systems())))
         sys.exit(0)
     apply_strict(args)
     utils.init_logging(args)

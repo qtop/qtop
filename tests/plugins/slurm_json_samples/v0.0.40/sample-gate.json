@@ -1,0 +1,13 @@
+{
+  "args": [
+    "-F"
+  ],
+  "markers": [
+    "Total:3 Up:2 Free:0 Nodes",
+    "8/24 cpus",
+    "3=2+1+0 jobs",
+    "batch*: 1 + 1",
+    "empty*: 0",
+    "scheduler CPU IDs"
+  ]
+}

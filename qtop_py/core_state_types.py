@@ -14,17 +14,9 @@ if TYPE_CHECKING:
     IdentifierMaps = Dict[str, Dict[str, str]]
 
     class JobResources(TypedDict, total=False):
-        """Optional scheduler-specific job fields (Slurm partitions, arrays, TRES)."""
+        """Optional neutral job fields; a backend types its own next to its ExtensionSpec."""
 
-        slurm_partitions: List[str]
         accounting_state: str
-        slurm_array_job_id: str
-        slurm_array_task_id: str
-        slurm_het_job_id: str
-        slurm_het_job_offset: str
-        slurm_tres_alloc: str
-        slurm_tres_per_node: str
-        slurm_tres_per_task: str
         qid: str  # schema 2 qualified ID "<backend>:<cluster_id>:<id>", unique in the observation
         kind: str  # schema 2: job, pod, vm or task
         parent_qid: str  # schema 3 beta1: same-source workload containment, not controller ownership
@@ -55,19 +47,12 @@ if TYPE_CHECKING:
         job_id: str
 
     class NodeResources(TypedDict, total=False):
-        """Optional scheduler-specific node fields (Slurm state and GPUs, OAR jobs, CPU placement)."""
+        """Optional neutral node fields: accelerators and CPU-placement source (schedulers/resources.py)."""
 
-        slurm_node_state: str
-        slurm_block: str
-        slurm_gpu_configured: List[GPUResource]
-        slurm_gpu_used: List[GPUResource]
-        slurm_gpu_bindings: List[GPUBinding]
-        slurm_job_ids: List[str]
-        oar_job_ids: List[str]
-        slurm_unmapped_cpus: int
-        cpu_allocation_source: str
-        slurm_gres: str
-        slurm_gres_used: str
+        gpu_configured: List[GPUResource]
+        gpu_used: List[GPUResource]
+        gpu_bindings: List[GPUBinding]
+        cpu_allocation_source: str  # scheduler, estimated or none
         qid: str  # schema 2 qualified ID "<backend>:<cluster_id>:<id>", unique in the observation
 
     class Node(NodeResources):
@@ -102,12 +87,6 @@ if TYPE_CHECKING:
         run: Union[int, str]
         state: str
 
-    class SnapshotDiagnostics(TypedDict, total=False):
-        """Per-scheduler counts of parser notes, e.g. rejected rows."""
-
-        slurm_diagnostics: Dict[str, int]
-        oar_diagnostics: Dict[str, int]
-
     class Source(TypedDict):
         """Where an observation comes from: the backend and a cluster ID chosen by the operator."""
 
@@ -121,8 +100,12 @@ if TYPE_CHECKING:
         schema_revision: str  # required beta1 marker for experimental schema 3
         source: Source
 
-    class ClusterState(SnapshotDiagnostics, Observation):
-        """The plain-data boundary between backends and qtop: jobs, nodes and queues (scheduling domains)."""
+    class ClusterState(Observation):
+        """The plain-data boundary between backends and qtop: jobs, nodes and queues (scheduling domains).
+
+        A backend types its own fields (e.g. slurm_diagnostics, slurm_node_state) next to its
+        ExtensionSpec, not here; GenericBatchSystem stores diagnostics under the spec's key.
+        """
 
         jobs: List[Job]
         nodes: List[Node]
