@@ -7,10 +7,13 @@ Notable changes by version, newest first. See the
 
 - CI: scorecard.yml defaults to contents: read like the other workflows, not read-all (Sonar S8234)
 - Docs: sonar-review.md records the e880da9 scan: scorecard permissions fixed, 12 findings as before
-- Docs: documentation.md describes -b flux; qtopconf.yaml and qtop.1 list it; ROADMAP tracks it
+- Docs: documentation.md describes -b flux and the backend guide's steps; ROADMAP tracks Flux
 - Feature: Flux backend (-b flux) reads flux jobs/resource/queue output; traces from flux-core 0.91
+- Feature: qtop --list-backends prints each backend's commands, as a qtopconf.yaml layer to copy
 - Refactor: each sample directory holds its sample-gate.json case; no central table to edit
 - Refactor: -b auto tries backends in qtopconf.yaml's detection_order; plugins carry no priority
+- Refactor: qtopconf.yaml keeps no copy of backend commands; tests and docs pin no backend list
+- Refactor: backends type their own fields; the base class stores each one's diagnostics
 - Tests: tests/plugins/test_flux.py, the plugin contract and the sample gate cover the Flux backend
 - Release: update version metadata to 0.9.20261127
 

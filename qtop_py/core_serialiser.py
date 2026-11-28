@@ -131,7 +131,18 @@ class GenericBatchSystem(object):
         job_ids, users, job_states, job_queues = self.get_jobs_info()
         _running, _queued, queues = self.get_queues_info()
         nodes = self.get_worker_nodes(job_ids, job_queues, options)
-        return build_cluster_state(job_ids, users, job_states, job_queues, nodes, queues)
+        state = build_cluster_state(job_ids, users, job_states, job_queues, nodes, queues)
+        counts = self.cluster_diagnostics()
+        if counts and self.extensions is not None and self.extensions.diagnostics:
+            cast("Dict[str, object]", state)[self.extensions.diagnostics[0]] = dict(counts)
+        return state
+
+    def cluster_diagnostics(self) -> "Dict[str, int]":
+        """Return this collection's parser counters, stored under the ExtensionSpec's diagnostics key.
+
+        The default returns self.diagnostics, which a backend sets while parsing, if it has any.
+        """
+        return dict(getattr(self, "diagnostics", None) or {})
 
     @classmethod
     def ensure_worker_nodes_have_qnames(cls, _worker_nodes: "Sequence[Mapping[str, Any]]", job_ids: "List[str]", job_queues: "List[str]") -> "List[Node]":

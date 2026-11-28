@@ -55,7 +55,7 @@ invoking it in demo mode:
 ```
 
 When used, the ``-b`` switch must always be followed by one of the
-supported batch systems (pbs, sge, oar, slurm, slurm_json, lsf, htcondor, flux, demo).
+supported batch systems; ``qtop --list-backends`` names them, with their commands.
 
 That should create and destroy fictional jobs in fictional machines from
 fictional users, and display all that in a colorful but not yet very
@@ -1182,8 +1182,8 @@ checkout.
 
 ### Input selection
 
--  ``-b SYSTEM`` selects the scheduler backend. Common values are
-   ``demo``, ``pbs``, ``sge``, ``oar``, ``slurm``, ``slurm_json``, ``lsf``, ``htcondor`` and ``flux``.
+-  ``-b SYSTEM`` selects the scheduler backend, e.g. ``slurm`` or ``demo``; ``qtop
+   --list-backends`` prints every backend with its default commands.
 -  ``-s DIRECTORY`` / ``--SetSourceDir`` reads scheduler output files from
    ``DIRECTORY`` instead of running commands. Passing an existing output file
    selects its parent directory; qtop still needs all files for that backend.
@@ -1786,8 +1786,7 @@ with tempfile.TemporaryDirectory() as workdir:
 
 - `collect_state(backend, workdir, options=None, commands=None, config=None, timeout=...,
   cancel=None, env=None)` returns the validated state. `backend` is a backend class
-  (`SlurmBatchSystem`, `PBSBatchSystem`, `SGEBatchSystem`, `OARBatchSystem`,
-  `LSFBatchSystem`, `HTCondorBatchSystem`, `FluxBatchSystem`, `SlurmJSONBatchSystem` in `qtop_py.plugins.*`, or
+  (any `GenericBatchSystem` subclass in `qtop_py.plugins.*`, e.g. `SlurmBatchSystem`, or
   your own). `workdir` must exist and receives the live traces; `SOURCEDIR` traces are read in place. `env` is required to run
   commands, so the core never reads the environment by itself.
 - `collect(...)` takes the same arguments plus `files=` (trace paths by key, when the
@@ -1847,13 +1846,10 @@ ones) already apply to it. Its own command-line switches come from the
 `add_cli_options(parser)` and `check_cli_options(parser, args)` hooks, as Slurm's
 `--all`, `--slurm-summary` and `--slurm-json-squeue` do; the backend reads them with
 `getattr` and a default, and `core_api.BackendOptions(**options)` passes them without
-the CLI. Then:
-
-1. Add the default commands to the commented list in `qtopconf.yaml`
-   (`tests/test_backend_discovery.py` checks the copy).
-2. Commit sample traces in `tests/plugins/<mnemonic>_samples/<case>/`, each with a
-   `sample-gate.json` giving its extra arguments and expected output markers; the
-   sample gate finds them, runs every registered backend and fails without them.
+the CLI; `qtop --list-backends` prints its declared commands. Then commit sample
+traces in `tests/plugins/<mnemonic>_samples/<case>/`, each with a `sample-gate.json`
+giving its extra arguments and expected output markers; the sample gate finds them,
+runs every registered backend and fails without them.
 
 If its jobs or nodes carry fields beyond the neutral schema (array IDs, slot
 counts, job lists on nodes), describe them in one `ExtensionSpec`
@@ -1862,7 +1858,10 @@ to it when plugins share it, as `plugins/slurm_extension.py` does. Set the plugi
 `extensions` to it and take `node_job_fields` from it; `schedulers/metadata.py`
 collects the specs of all registered backends. Validation, `-A` masking and the idle
 test then cover those fields for every state, including replayed and `--load-sample`
-ones.
+ones. Parser counters the backend leaves in `self.diagnostics` (or returns from
+`cluster_diagnostics()`) are stored under the spec's diagnostics key. Type the fields
+next to the spec, as `SlurmJob` and `SlurmNode` subclass `Job` and `Node` in
+`plugins/slurm_extension.py`; `core_state_types.py` holds only neutral ones.
 
 `tests/test_plugin_conformance.py` runs for every registered backend. It fails
 until the steps above are done, and it checks each committed sample through export,

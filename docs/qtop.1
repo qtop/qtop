@@ -52,20 +52,14 @@ scheduler generates a synthetic cluster and needs no scheduler commands.
 .SS Scheduler and input
 .TP
 .BI \-b " name" "\fR, \fP" \-\-batchSystem " name"
-Scheduler to query:
-.BR pbs ,
-.BR sge ,
-.BR slurm ,
-.BR slurm_json ,
-.BR oar ,
-.BR lsf ,
-.BR htcondor ,
-.BR flux ,
-.B demo
-or
+Scheduler to query: a backend name, as
+.B \-\-list\-backends
+prints them, or
 .B auto
 (detect from the commands found in
-.BR PATH ).
+.BR PATH ,
+in the configured
+.BR detection_order ).
 .TP
 .BI \-s " path" "\fR, \fP" \-\-SetSourceDir " path"
 Read scheduler traces from a directory or a tar archive instead of running
@@ -306,6 +300,11 @@ Increase verbosity; may be repeated.
 .TP
 .BR \-V ", " \-\-version
 Print the version and exit.
+.TP
+.B \-\-list\-backends
+Print every backend's signature command and default scheduler commands, as
+.I qtopconf.yaml
+lines ready to copy into a configuration layer, and exit.
 .TP
 .BR \-h ", " \-\-help
 Print a usage summary and exit.

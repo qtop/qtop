@@ -64,6 +64,18 @@ def backend_defaults(backends: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
     return defaults
 
 
+def describe_backends(backends: Mapping[str, Any]) -> List[str]:
+    """Return each backend's default commands and signature command, as qtopconf.yaml layer lines."""
+    defaults = backend_defaults(backends)
+    lines = ["## qtop backends (-b NAME); their defaults, ready to copy into a qtopconf.yaml layer:", "signature_commands:"]
+    lines.extend("  %s: %s" % (name, defaults["signature_commands"][name]) for name in sorted(defaults["signature_commands"]))
+    lines.append("schedulers:")  # last: qtop's YAML parser leaves a nested block only at the end
+    for name in sorted(defaults["schedulers"]):
+        lines.append("  %s:" % name)
+        lines.extend("    %s: %s" % item for item in defaults["schedulers"][name].items())
+    return lines
+
+
 def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, Any]) -> str:
     """Return the first scheduler whose signature command exists, for scheduler auto.
 

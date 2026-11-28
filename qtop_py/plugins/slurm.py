@@ -23,9 +23,21 @@ if TYPE_CHECKING:
     from typing import Final
 
     from qtop_py.core_api import TraceMasker
-    from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_state_types import ClusterState, Config, Job, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.plugins.slurm_extension import SlurmJob, SlurmNode
 
 logger = logging.getLogger(__name__)
+
+
+def slurm_jobs(jobs: "List[Job]") -> "List[SlurmJob]":
+    """Return the jobs as Slurm records, whose slurm_* fields slurm_extension types."""
+    return cast("List[SlurmJob]", jobs)
+
+
+def slurm_nodes(nodes: "List[Node]") -> "List[SlurmNode]":
+    """Return the nodes as Slurm records, whose slurm_* fields slurm_extension types."""
+    return cast("List[SlurmNode]", nodes)
+
 
 SLURM_JOB_STATES: "Final" = {
     "BOOT_FAIL": "BF",
@@ -430,7 +442,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     @staticmethod
     def node_state_marker(node: "Node") -> str:
         """Return the Slurm node-state suffix (*, +, #, ~, ...) shown in the matrix."""
-        state = node.get("slurm_node_state", "")
+        state = slurm_nodes([node])[0].get("slurm_node_state", "")
         return state[-1] if state and state[-1] in "*+#~$@%!^-" else ""
 
     @staticmethod
@@ -485,7 +497,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         """Return the nodes of each block, in node order, and the blocks each job runs in."""
         blocks: Dict[str, List[Mapping[str, Any]]] = OrderedDict()
         job_blocks: Dict[str, Set[str]] = {}
-        for node in nodes:
+        for node in slurm_nodes(nodes):
             if "slurm_block" not in node:
                 continue
             blocks.setdefault(node["slurm_block"], []).append(node)
@@ -551,12 +563,13 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     def _placement_messages(nodes: "List[Node]") -> List[str]:
         """Say where CPU placement is estimated or comes from Slurm, and what the matrix omits."""
         lines = []
-        sources = {node.get("cpu_allocation_source") for node in nodes}
+        typed = slurm_nodes(nodes)
+        sources = {node.get("cpu_allocation_source") for node in typed}
         if "estimated" in sources:
             lines.append("WARNING: Slurm CPU placement: estimated where allocation details are unavailable.")
         if "slurm" in sources:
             lines.append("INFO: Slurm CPU placement: scheduler CPU IDs; Linux task affinity is not shown.")
-        omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in nodes)
+        omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in typed)
         if omitted:
             lines.append("WARNING: Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
         return lines
@@ -724,7 +737,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     def get_cluster_state(self, options: "Options") -> "ClusterState":
         """Return the cluster state with Slurm partitions, accounting states and array IDs."""
         state = super().get_cluster_state(options)
-        for job, raw in zip(state["jobs"], self._get_jobs()):
+        for job, raw in zip(slurm_jobs(state["jobs"]), self._get_jobs()):
             job["slurm_partitions"] = list(raw["slurm_partitions"])
             job["accounting_state"] = raw["accounting_state"]
             if "slurm_array_job_id" in raw:
@@ -737,6 +750,10 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 job["slurm_tres_alloc"] = raw["slurm_tres_alloc"]
                 job["slurm_tres_per_node"] = raw["slurm_tres_per_node"]
                 job["slurm_tres_per_task"] = raw["slurm_tres_per_task"]
+        return state
+
+    def cluster_diagnostics(self) -> Dict[str, int]:
+        """Return Slurm's allocation, rejected-row and collection counters (slurm_diagnostics)."""
         diagnostics = dict(self.allocation_diagnostics)
         for source in ("squeue", "sinfo"):
             count = getattr(self.slurm_stat_maker, "rejected_%s_rows" % source, 0)
@@ -746,9 +763,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
             diagnostics["jobs_from_scontrol"] = len(self.jobs_from_scontrol)
         if getattr(self.options, "ALL_PARTITIONS", False) and not getattr(self.options, "SOURCEDIR", None):
             diagnostics["all_partitions"] = 1  # the notes then stop suggesting --all
-        if diagnostics:
-            state["slurm_diagnostics"] = diagnostics
-        return state
+        return diagnostics
 
     def get_jobs_info(self) -> "JobsInfo":
         """Return job IDs, users, states and partitions from squeue."""

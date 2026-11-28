@@ -254,6 +254,7 @@ def parse_qtop_cmdline_args() -> Namespace:
     )
     parser.add_argument("-v", "--verbose", dest="verbose", action="count", help="Increase verbosity (specify multiple times for more)")
     parser.add_argument("-V", "--version", dest="version", action="store_true", help="Print qtop version")
+    parser.add_argument("--list-backends", dest="list_backends", action="store_true", help="Print each backend's default commands and signature command, then exit")
     parser.add_argument(
         "-w",
         "--watch",

@@ -22,7 +22,7 @@ from qtop_py.schedulers.extensions import ExtensionSpec
 if TYPE_CHECKING:
     from typing import Final
 
-    from qtop_py.core_state_types import ClusterState, Config, JobsInfo, Node, Options, QueuesInfo
+    from qtop_py.core_state_types import Config, JobsInfo, Node, Options, QueuesInfo
 
 logger = logging.getLogger(__name__)
 
@@ -102,13 +102,6 @@ class FluxBatchSystem(GenericBatchSystem):
         self.config = config
         self.options = options
         self.diagnostics: Dict[str, int] = {}
-
-    def get_cluster_state(self, options: "Options") -> "ClusterState":
-        """Return the cluster state, with flux_diagnostics when ownership is estimated or unknown."""
-        state = super().get_cluster_state(options)
-        if self.diagnostics:
-            state["flux_diagnostics"] = self.diagnostics.copy()
-        return state
 
     def get_jobs_info(self) -> "JobsInfo":
         """Return f58 job IDs, user names, flux jobs state letters and queues."""

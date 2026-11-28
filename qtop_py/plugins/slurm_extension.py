@@ -12,6 +12,32 @@ from qtop_py.schedulers.gpu import validate_gpu_resources
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final
 
+    from qtop_py.core_state_types import Job, Node
+
+    class SlurmJob(Job, total=False):
+        """A job with the slurm_* fields this extension validates and masks."""
+
+        slurm_partitions: List[str]
+        slurm_array_job_id: str
+        slurm_array_task_id: str
+        slurm_het_job_id: str
+        slurm_het_job_offset: str
+        slurm_tres_alloc: str
+        slurm_tres_per_node: str
+        slurm_tres_per_task: str
+
+    class SlurmNode(Node, total=False):
+        """A node with Slurm's state, topology block, extra job list, GRES text and CPU placement source."""
+
+        slurm_node_state: str
+        slurm_block: str
+        slurm_job_ids: List[str]
+        slurm_unmapped_cpus: int
+        cpu_allocation_source: str
+        slurm_gres: str
+        slurm_gres_used: str
+
+
 GPU_FIELDS: "Final" = ("slurm_gpu_configured", "slurm_gpu_used", "slurm_gpu_bindings")
 NODE_JOB_FIELDS: "Final" = ("slurm_job_ids",)
 JOB_IDENTITIES: "Final" = (("slurm_array_job_id", "slurm_array_task_id", "_"), ("slurm_het_job_id", "slurm_het_job_offset", "+"))
