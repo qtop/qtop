@@ -84,7 +84,7 @@ OAR_EXTENSION: "Final" = ExtensionSpec(
 class OARBatchSystem(GenericBatchSystem):
     """OAR backend."""
 
-    detection_priority = 1  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4
+    detection_priority = 1  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4, Flux 5
     signature_command = "oarnodes"
     default_commands = {
         "oarnodes_s_file": "%(savepath)s/oarnodes_s_Y%(pid)s.txt, oarnodes -s -Y",

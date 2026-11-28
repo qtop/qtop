@@ -107,6 +107,7 @@ if TYPE_CHECKING:
 
         slurm_diagnostics: Dict[str, int]
         oar_diagnostics: Dict[str, int]
+        flux_diagnostics: Dict[str, int]
 
     class Source(TypedDict):
         """Where an observation comes from: the backend and a cluster ID chosen by the operator."""

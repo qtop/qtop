@@ -210,6 +210,12 @@ Open items here are proposals, not 1.0 release requirements.
   - [x] [CI] Include parser, accounting and terminal smoke checks
     (`tests/plugins/test_lsf.py`, conformance, masked-trace replay, sample gate).
 
+- [ ] Add Flux support.
+  - [x] Traces captured from a flux-core 0.91 test instance in `tests/plugins/flux_samples/basic`.
+  - [ ] An owner and anonymized traces from a multi-user system instance, with GPUs.
+  - [x] [CI] Parser, accounting and terminal smoke checks
+    (`tests/plugins/test_flux.py`, conformance, sample gate).
+
 - [ ] Provide EasyBuild packaging.
   - [x] Track a version-matched EasyBuild recipe under `docs/`, synchronized by
     `tools.prepare_release`; site deployment is not certified by this file.

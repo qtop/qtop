@@ -182,6 +182,21 @@ STATIC_CASES = {
             ],
         }
     ],
+    "flux": [
+        {
+            "name": "flux-basic",
+            "source": ROOT / "tests/plugins/flux_samples/basic",
+            "args": ["-b", "flux", "-s", str(ROOT / "tests/plugins/flux_samples/basic"), "-c", "ON", "-F"],
+            "markers": [
+                "Summary : Total:8 Up:5 Free:5 Nodes",
+                "38/128 cpus",
+                "11=5+5+1 jobs",
+                "long*: 0 + 1",
+                "Worker Nodes occupancy",
+                "User accounts and pool mappings",
+            ],
+        }
+    ],
     "demo": [
         {
             "name": "demo-generated",

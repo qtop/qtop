@@ -6,7 +6,7 @@
 ## Lines beginning with single hash are commands commented out that you could try out.
 ## Available colors and fg-bg combinations depicted in colormap.py, in color_to_code
 
-## scheduler possible values (currently supported): pbs, oar, sge, slurm, slurm_json, lsf, htcondor
+## scheduler possible values (currently supported): pbs, oar, sge, slurm, slurm_json, lsf, htcondor, flux
 ## auto detects available batch commands, preferring legacy Slurm over JSON.
 scheduler: auto
 
@@ -56,6 +56,12 @@ experimental_web_port: 8080
 #     demo_file: %(savepath)s/demo%(pid)s.txt, echo 'Demo here'
 #   demo72:
 #     demo72_file: %(savepath)s/demo72%(pid)s.txt, echo 'NVL72 demo here'
+#   flux:
+#     jobs_json: %(savepath)s/flux_jobs%(pid)s.json, flux jobs -A --json
+#     resource_json: %(savepath)s/flux_resource_R%(pid)s.json, flux resource R
+#     rlist_file: %(savepath)s/flux_resource_list%(pid)s.txt, flux resource list -no '{state} {rlist}'
+#     status_file: %(savepath)s/flux_resource_status%(pid)s.txt, flux resource status -no '{state} {nodelist}'
+#     queues_file: %(savepath)s/flux_queue_list%(pid)s.txt, flux queue list -no '{queue} {enabled} {started}'
 #   htcondor:
 #     status_json: %(savepath)s/condor_status%(pid)s.json, condor_status -json -attributes Name,Machine,SlotType,PartitionableSlot,DynamicSlot,State,Activity,Cpus,TotalSlotCpus
 #     q_json: %(savepath)s/condor_q%(pid)s.json, condor_q -allusers -json -attributes ClusterId,ProcId,Owner,JobStatus,RemoteHost,RequestCpus,AcctGroup

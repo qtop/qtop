@@ -55,7 +55,7 @@ invoking it in demo mode:
 ```
 
 When used, the ``-b`` switch must always be followed by one of the
-supported batch systems (pbs, sge, oar, slurm, slurm_json, lsf, htcondor, demo).
+supported batch systems (pbs, sge, oar, slurm, slurm_json, lsf, htcondor, flux, demo).
 
 That should create and destroy fictional jobs in fictional machines from
 fictional users, and display all that in a colorful but not yet very
@@ -894,7 +894,7 @@ qtop also has a scheduler-type discovery system, meaning it will try to
 guess which scheduler system is installed in your system. Each backend
 declares the command that characterises it (``signature_command``) and a
 ``detection_priority``: Slurm (``sinfo``) first, then Slurm JSON, PBS
-(``pbsnodes``), OAR, SGE, LSF and HTCondor, so that an unrelated ``qstat``
+(``pbsnodes``), OAR, SGE, LSF, HTCondor and Flux, so that an unrelated ``qstat``
 command does not mask an available ``sinfo`` command. Override one in a
 configuration layer:
 
@@ -1181,7 +1181,7 @@ checkout.
 ### Input selection
 
 -  ``-b SYSTEM`` selects the scheduler backend. Common values are
-   ``demo``, ``pbs``, ``sge``, ``oar``, ``slurm``, ``slurm_json``, ``lsf`` and ``htcondor``.
+   ``demo``, ``pbs``, ``sge``, ``oar``, ``slurm``, ``slurm_json``, ``lsf``, ``htcondor`` and ``flux``.
 -  ``-s DIRECTORY`` / ``--SetSourceDir`` reads scheduler output files from
    ``DIRECTORY`` instead of running commands. Passing an existing output file
    selects its parent directory; qtop still needs all files for that backend.
@@ -1718,6 +1718,44 @@ offered for HTCondor and are listed as omitted; `-A` exports are anonymized.
 The backend is built from documented JSON output and synthetic traces in
 `tests/plugins/htcondor_samples/`; it has not yet been checked against a live pool.
 
+### Flux backend
+
+`-b flux` reads a Flux instance through the `flux` command; autodetection
+selects it last, when `flux` is on the `PATH` and no other scheduler is. (The
+FluxCD Kubernetes tool is also called `flux`: pass `-b` explicitly there.) Each
+frame runs (see `qtopconf.yaml`):
+
+```console
+flux jobs -A --json
+flux resource R
+flux resource list -no '{state} {rlist}'
+flux resource status -no '{state} {nodelist}'
+flux queue list -no '{queue} {enabled} {started}'
+./qtop -b flux -s tests/plugins/flux_samples/basic -F
+```
+
+- **Nodes** are the instance's broker ranks, named and sized by `flux resource
+  R`. `flux resource status` gives the state: `avail` is `-`, `draining`,
+  `drained` and `exclude` are `o`, `torpid` is `s`, `housekeeping` is `b`, and
+  any state marked `*` (broker offline) is down, `d`.
+- **Jobs** are the active jobs of all users, by their f58 ID (`ƒHcexB9`), with
+  the state letters `flux jobs` prints (`D`, `P`, `S`, `R`, `C`); a held job is
+  `S`, as there.
+- **Cores**: the allocated cores of each node come from `flux resource list`, and
+  are exact. A job's own cores (its R) are readable only by its owner and the
+  instance owner, so each running job takes its share of its nodes' allocated
+  cores (`ncores` over `nnodes`). On a node that runs one job this is exact; where
+  jobs share a node, which job holds which core is estimated, an allocated core
+  with no listed job is `?`, and a note under the snapshot says so.
+- **Queues** come from `flux queue list`; a stopped queue is blocked (`*`). An
+  instance without named queues has one anonymous queue, shown as `default`.
+
+GPUs are read but not yet shown. Masked source traces (`--masked-traces`) are not
+offered for Flux and are listed as omitted; `-A` exports are anonymized. The
+sample in `tests/plugins/flux_samples/basic` was captured from a flux-core 0.91
+test instance (`flux start --test-size=6`); it has not yet been checked against a
+multi-user system instance.
+
 ## Using qtop as a library
 
 `qtop_py.core_api` is the public interface of qtop's scheduler core. It collects a
@@ -1745,7 +1783,7 @@ with tempfile.TemporaryDirectory() as workdir:
 - `collect_state(backend, workdir, options=None, commands=None, config=None, timeout=...,
   cancel=None, env=None)` returns the validated state. `backend` is a backend class
   (`SlurmBatchSystem`, `PBSBatchSystem`, `SGEBatchSystem`, `OARBatchSystem`,
-  `LSFBatchSystem`, `HTCondorBatchSystem`, `SlurmJSONBatchSystem` in `qtop_py.plugins.*`, or
+  `LSFBatchSystem`, `HTCondorBatchSystem`, `FluxBatchSystem`, `SlurmJSONBatchSystem` in `qtop_py.plugins.*`, or
   your own). `workdir` must exist and receives the live traces; `SOURCEDIR` traces are read in place. `env` is required to run
   commands, so the core never reads the environment by itself.
 - `collect(...)` takes the same arguments plus `files=` (trace paths by key, when the

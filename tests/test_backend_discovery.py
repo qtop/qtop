@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_every_plugin_module_is_found_with_the_defaults_it_declares():
     backends = registry.discover_qtop_batch_systems()
-    assert list(backends) == ["demo", "demo72", "htcondor", "lsf", "oar", "pbs", "sge", "slurm", "slurm_json"]
+    assert list(backends) == ["demo", "demo72", "flux", "htcondor", "lsf", "oar", "pbs", "sge", "slurm", "slurm_json"]
     defaults = registry.backend_defaults(backends)
     assert set(defaults["schedulers"]) == set(defaults["signature_commands"]) == set(backends)
     assert "slurm_json" not in defaults["state_abbreviations"]  # declared on SlurmBatchSystem, not inherited
