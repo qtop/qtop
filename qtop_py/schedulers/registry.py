@@ -65,9 +65,13 @@ def backend_defaults(backends: Mapping[str, Any]) -> Dict[str, Dict[str, Any]]:
 
 
 def auto_get_avail_batch_system(config: Dict[str, Any], backends: Mapping[str, Any]) -> str:
-    """Return the first scheduler whose commands exist on this system, for scheduler auto."""
+    """Return the first scheduler whose signature command exists, for scheduler auto.
+
+    Backends are tried in config["detection_order"], then the unlisted ones in configuration order.
+    """
     signature_commands: Dict[str, str] = config["signature_commands"]
-    prioritized_commands = sorted(signature_commands.items(), key=lambda item: backends.get(item[0], GenericBatchSystem).detection_priority)
+    rank = {name: index for index, name in enumerate(config.get("detection_order", []))}
+    prioritized_commands = sorted(signature_commands.items(), key=lambda item: rank.get(item[0], len(rank)))
     for system, batch_command in prioritized_commands:
         if system not in backends or backends[system].is_simulated or not shutil.which(batch_command):
             continue

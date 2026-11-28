@@ -26,7 +26,6 @@ class CustomBackend(GenericBatchSystem):
     optional_trace_keys = ("detail_file",)
     optional_trace_aliases = {"detail_file": "native-details.txt"}
     node_job_fields = ("custom_job_ids",)
-    detection_priority = -10
     blocked_queue_note = " (custom queue policy)"
 
     @staticmethod
@@ -80,7 +79,9 @@ def test_plugin_controls_collection_optional_inputs_and_queue_policy(monkeypatch
 def test_plugin_controls_optional_live_failure_and_detection(monkeypatch, tmp_path, caplog):
     monkeypatch.setattr(registry, "PLUGIN_BATCH_SYSTEMS", (GenericCompetitor, CustomBackend))
     monkeypatch.setattr(registry.shutil, "which", lambda command: "/usr/bin/" + command)
-    assert registry.auto_get_avail_batch_system({"signature_commands": {"competitor": "other", "custom": "native"}}, registry.discover_qtop_batch_systems()) == "custom"
+    commands = {"signature_commands": {"competitor": "other", "custom": "native"}}
+    assert registry.auto_get_avail_batch_system(commands, registry.discover_qtop_batch_systems()) == "competitor"  # configuration order
+    assert registry.auto_get_avail_batch_system(dict(commands, detection_order=["custom"]), registry.discover_qtop_batch_systems()) == "custom"
 
     def fail(*args, **kwargs):
         raise qtop.OperationalError("optional client unavailable")

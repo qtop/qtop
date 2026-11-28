@@ -892,11 +892,13 @@ sinfo -N -h -O 'NodeList:0|,Partition:0|,StateCompact:0|,CPUs:0|,Gres:0|,GresUse
 
 qtop also has a scheduler-type discovery system, meaning it will try to
 guess which scheduler system is installed in your system. Each backend
-declares the command that characterises it (``signature_command``) and a
-``detection_priority``: Slurm (``sinfo``) first, then Slurm JSON, PBS
-(``pbsnodes``), OAR, SGE, LSF, HTCondor and Flux, so that an unrelated ``qstat``
-command does not mask an available ``sinfo`` command. Override one in a
-configuration layer:
+declares the command that characterises it (``signature_command``), and
+``detection_order`` in ``qtopconf.yaml`` says which to try first: Slurm
+(``sinfo``), then Slurm JSON, PBS (``pbsnodes``), OAR, SGE, LSF, HTCondor and
+Flux, so that the ``pbsnodes`` and ``qstat`` of Slurm's torque wrappers do not
+mask an available ``sinfo``. Backends not listed are tried after the listed
+ones. A configuration layer replaces the whole list, and overrides a signature
+command per backend:
 
 ```yaml
 ---
@@ -1835,8 +1837,9 @@ field) is reported as a possible qtop bug.
 
 A backend is self-standing: its module declares, on the class, `default_commands`
 (trace key to `"output file, command"`), the `signature_command` that `-b auto` looks
-for, a `detection_priority` and its `state_abbreviations`. `schedulers/registry.py`
-finds every `GenericBatchSystem` subclass defined in a `qtop_py/plugins/` module, so
+for and its `state_abbreviations`. Where `-b auto` tries it among the others is a site
+choice, `detection_order` in `qtopconf.yaml`; an unlisted backend comes after the
+listed ones. `schedulers/registry.py` finds every `GenericBatchSystem` subclass defined in a `qtop_py/plugins/` module, so
 there is nothing to register; other packages add backends through the
 `qtop.backends` entry-point group (Python 3.8+). Configuration layers override the
 declared defaults per key, and matrix rows without a `systems:` list (the default

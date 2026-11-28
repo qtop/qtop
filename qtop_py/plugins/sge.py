@@ -180,7 +180,6 @@ class SGEStatExtractor(StatExtractor):
 class SGEBatchSystem(GenericBatchSystem):
     """SGE backend."""
 
-    detection_priority = 2
     signature_command = "qacct"
     default_commands = {
         "sge_file": "%(savepath)s/qstat%(pid)s.F.xml.stdout, qstat -F -xml -u '*'",

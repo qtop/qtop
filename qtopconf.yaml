@@ -10,6 +10,20 @@
 ## auto detects available batch commands, preferring legacy Slurm over JSON.
 scheduler: auto
 
+## With auto, the first backend here whose signature command is on the PATH wins; backends
+## not listed come after them. Slurm precedes PBS, as Slurm's torque wrappers also install
+## pbsnodes and qstat, and slurm_json, which shares its commands; Flux is last, as the FluxCD
+## Kubernetes tool is also called flux. A configuration layer replaces the whole list.
+detection_order:
+ - slurm
+ - slurm_json
+ - pbs
+ - oar
+ - sge
+ - lsf
+ - htcondor
+ - flux
+
 ## GPUs/TPUs/NPUs are matrix cells with user IDs, as cores are. For job IDs too, add lines
 ## before or after the matrix (false, the default, shows only the cells).
 ## accelerator_map: before

@@ -84,7 +84,6 @@ OAR_EXTENSION: "Final" = ExtensionSpec(
 class OARBatchSystem(GenericBatchSystem):
     """OAR backend."""
 
-    detection_priority = 1
     signature_command = "oarnodes"
     default_commands = {
         "oarnodes_s_file": "%(savepath)s/oarnodes_s_Y%(pid)s.txt, oarnodes -s -Y",

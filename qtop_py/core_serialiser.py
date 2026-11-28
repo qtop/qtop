@@ -49,7 +49,6 @@ class GenericBatchSystem(object):
     optional_trace_aliases: Dict[str, str] = {}
     optional_trace_warning = "Optional scheduler details unavailable."
     optional_trace_warnings: Dict[str, str] = {}  # trace key -> its own warning, instead of optional_trace_warning
-    detection_priority = 0  # -b auto tries lower values first; ties keep the configuration's order
     is_simulated = False
     # Each backend declares its own defaults; schedulers.registry reads only what a class declares
     # itself, and the configuration layers override them per key (qtopconf.yaml schedulers: etc.).

@@ -409,7 +409,6 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
     optional_trace_aliases = {"scontrol_file": "scontrol.txt", "topology_file": "topology.txt"}
     optional_trace_warning = "Using estimated Slurm CPU placement."
     optional_trace_warnings = {"topology_file": "Slurm topology blocks are not shown."}
-    detection_priority = -2
     extensions = SLURM_EXTENSION
     node_job_fields = SLURM_EXTENSION.node_job_fields
     blocked_queue_note = " (partition closed to submissions or scheduling)"

@@ -58,7 +58,6 @@ def parse_exec_host(value: str) -> "OrderedDict[str, int]":
 class LSFBatchSystem(GenericBatchSystem):
     """LSF backend."""
 
-    detection_priority = 3
     signature_command = "bhosts"
     default_commands = {
         # Hosts and queues as wide whitespace tables; jobs with a named, '|'-delimited header.

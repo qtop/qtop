@@ -225,7 +225,6 @@ class SlurmJSONBatchSystem(SlurmBatchSystem):
         "jobs_json": "%(savepath)s/slurm_jobs%(pid)s.json, scontrol --json show jobs",
     }
 
-    detection_priority = -1
     display_scheduler = "slurm"
     collection_interval = 20.0
     fallback_backend = SlurmBatchSystem
