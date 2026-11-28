@@ -72,9 +72,9 @@ today.
 |---|---|---|
 | observation | schema, backend, cluster identity | the version 2 envelope (`schema_version`, `source`) |
 | workload | identity, state, ownership | `jobs` (`id`, `qid`, `kind`, `user`, `state`) |
-| resource | nodes, GPUs, MIG, capacity, hierarchy | `nodes` (`np`, `slurm_gpu_*` descriptors, `qid`) |
+| resource | nodes, GPUs, MIG, capacity, hierarchy | `nodes` (`np`, neutral `gpu_*` descriptors, `qid`) |
 | resource_request | requested resources and constraints | future optional extension; today only backend text such as `slurm_tres_per_node` |
-| allocation | actual assignments, exact or estimated | `core_job_map`, `slurm_gpu_bindings`, `cpu_allocation_source`; predictions are a separate future relation |
+| allocation | actual assignments, exact or estimated | `core_job_map`, `gpu_bindings`, `cpu_allocation_source`; predictions are a separate future relation |
 | scheduling_domain | queues, partitions and analogous domains | `queues`, and `queue` on jobs, `qname` on nodes |
 
 **Scheduling domains** preserve backend-defined meanings: Slurm partitions,
@@ -115,7 +115,7 @@ observations as the same entity beyond what the backend guarantees.
   verbatim.
 - **Allocation:** what the scheduler assigned. Today that is
   per-core (`core_job_map`, either exact from `scontrol` or `estimated`) and
-  per-GPU (`slurm_gpu_bindings`). Allocation granularity is the finest unit the
+  per-GPU (`gpu_bindings`). Allocation granularity is the finest unit the
   backend reports, and `cpu_allocation_source` says whether it is exact.
 - **Utilization:** what was actually consumed over time. It is not part of an
   observation; it needs intervals and lives in FinOps adapters.

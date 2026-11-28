@@ -251,12 +251,14 @@ Current implementation and remaining preparation:
   `extensions`; metadata collects them from the registry on first use (plugins use
   only the standard library); `tests/test_plugin_conformance.py` checks every backend.
 - [x] Consolidate repeated backend defaults: each plugin declares its commands,
-  signature command, detection priority and state names; the registry finds plugin
+  signature command and state names (`-b auto` order is `detection_order` in `qtopconf.yaml`); the registry finds plugin
   modules (`pkgutil`) and `qtop.backends` entry points, and the sample gate covers
   every registered backend. Still no framework beyond those two mechanisms.
 - [ ] Define resource quantities, unknown placement and renderer capabilities
   with the first backend that needs them. Integer `np` and `core_job_map`
-  remain the existing CPU-grid contract, not a generic resource model.
+  remain the existing CPU-grid contract, not a generic resource model. The
+  accelerator fields (`gpu_*`) and the CPU placement source are already
+  scheduler-neutral (`schedulers/resources.py`); Slurm, demo72 and Flux fill them.
 
 Kubernetes namespaces, OpenStack projects and Flux scheduler scopes must keep
 native meaning. Do not represent unknown placement as free cores, convert

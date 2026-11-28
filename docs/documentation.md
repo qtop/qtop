@@ -734,9 +734,10 @@ node columns preserve configured GRES and GRES usage. These raw fields are
 available in JSON; GPU occupancy rendering is not implemented yet. Named
 fields use width zero so long resource descriptions are not truncated.
 
-GPU metadata is also normalized into node fields `slurm_gpu_configured`,
-`slurm_gpu_used`, and (when job detail records are available)
-`slurm_gpu_bindings`. Each resource has `type`, `count`, `device_indices`,
+GPU metadata is also normalized into the scheduler-neutral node fields
+`gpu_configured`, `gpu_used`, and (when job detail records are available)
+`gpu_bindings`, which any backend may fill (Flux does) and which exports before
+0.9.20261127 named `slurm_gpu_*`; qtop renames those when it reads them. Each resource has `type`, `count`, `device_indices`,
 `mig_profile`, and `parent_gpu_uuid`; bindings additionally have `job_id`.
 Bindings come only from per-node `GRES=` records in `scontrol --details show jobs`,
 never from requested TRES or aggregate node usage. Multiple jobs can retain
@@ -775,8 +776,9 @@ scontrol --details show jobs
 For offline input, save that output as `scontrol.txt` alongside `squeue.txt`
 and `sinfo.txt`; qtop discovers it automatically. The file is optional.
 Missing, failed, malformed or inconsistent details use the existing estimated
-placement. Each node exports `cpu_allocation_source` (`slurm`, `estimated`, or
-`none`); the scheduler messages block identifies estimates. Valid detail records use
+placement. Each node exports the scheduler-neutral `cpu_allocation_source` (`scheduler`,
+`estimated`, or `none`; older exports say `slurm` for `scheduler`); a shared note in
+the scheduler messages block identifies estimates, for every backend that sets it. Valid detail records use
 Slurm abstract CPU IDs, which are not Linux CPU IDs or task affinity masks.
 Overlapping allocations also use estimates because the current core map can
 represent only one job per CPU. Estimated placement fills available capacity
@@ -1746,19 +1748,24 @@ flux queue list -no '{queue} {enabled.ascii} {started.ascii}'
 - **Cores**: the allocated cores of each node come from `flux resource list`, and
   are exact. A job's own cores (its R) are readable only by its owner and the
   instance owner, so each running job takes its share of its nodes' allocated
-  cores (`ncores` over `nnodes`). On a node that runs one job this is exact; where
-  jobs share a node, which job holds which core is estimated, an allocated core
-  with no listed job is `?`, and a note under the snapshot says so.
+  cores (`ncores` over `nnodes`). On a node that runs one job this is exact
+  (`cpu_allocation_source: scheduler`); where jobs share a node, which job holds
+  which core is estimated (`estimated`, with the shared placement note), and an
+  allocated core with no listed job is `?`.
+- **GPUs** come from `flux resource R` and the allocated line of `flux resource
+  list` into the neutral `gpu_*` fields, so the node matrix and `accelerator_map`
+  show them. A node's GPUs in use are bound to its job when it runs alone there;
+  on a shared node their holder is `?`, as no job's GPU count is visible to users.
 - **Queues** come from `flux queue list`; a stopped queue, or one paused by a
   stopped parent, is blocked (`*`). An instance without named queues has one
   anonymous queue, shown as `default`. That trace is optional: a flux-core too
   old for `{enabled.ascii}` still shows the queues its jobs name.
 
-GPUs are read but not yet shown. Masked source traces (`--masked-traces`) are not
-offered for Flux and are listed as omitted; `-A` exports are anonymized. The
-sample in `tests/plugins/flux_samples/basic` was captured from a flux-core 0.91
-test instance (`flux start --test-size=6`); it has not yet been checked against a
-multi-user system instance.
+Masked source traces (`--masked-traces`) are not offered for Flux and are listed
+as omitted; `-A` exports are anonymized. The samples in `tests/plugins/flux_samples/`
+(`basic`, and `gpu_shared` with GPUs and shared nodes) were captured from flux-core
+0.91 test instances; they have not yet been checked against a multi-user system
+instance.
 
 ## Using qtop as a library
 
@@ -1866,3 +1873,14 @@ next to the spec, as `SlurmJob` and `SlurmNode` subclass `Job` and `Node` in
 `tests/test_plugin_conformance.py` runs for every registered backend. It fails
 until the steps above are done, and it checks each committed sample through export,
 validation, replay and `-A` (no user name may survive anonymization).
+
+A backend in another package runs the same contract from `qtop_py.testing` on its
+own traces: `check_backend(MyBatchSystem)` checks its declarations and extension
+spec, and `check_sample(MyBatchSystem, trace_dir, workdir)` builds, validates,
+replays and anonymizes a state, each raising `AssertionError` with what to fix.
+
+Some node fields are scheduler-neutral, so any backend may fill them and qtop
+validates, masks, counts and displays them alike (`schedulers/resources.py`):
+`gpu_configured`, `gpu_used` and `gpu_bindings` (GPUs, TPUs and NPUs, shown in the
+node matrix and by `accelerator_map`), and `cpu_allocation_source` (`scheduler`,
+`estimated` or `none`, with a shared placement note).

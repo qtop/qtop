@@ -52,9 +52,20 @@ scheduler generates a synthetic cluster and needs no scheduler commands.
 .SS Scheduler and input
 .TP
 .BI \-b " name" "\fR, \fP" \-\-batchSystem " name"
-Scheduler to query: a backend name, as
+Scheduler to query:
+.BR demo ,
+.BR demo72 ,
+.BR flux ,
+.BR htcondor ,
+.BR lsf ,
+.BR oar ,
+.BR pbs ,
+.BR sge ,
+.BR slurm ,
+.B slurm_json
+(as
 .B \-\-list\-backends
-prints them, or
+prints them, with their commands) or
 .B auto
 (detect from the commands found in
 .BR PATH ,

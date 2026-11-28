@@ -212,7 +212,8 @@ Open items here are proposals, not 1.0 release requirements.
 
 - [ ] Add Flux support.
   - [x] Traces captured from a flux-core 0.91 test instance in `tests/plugins/flux_samples/basic`.
-  - [ ] An owner and anonymized traces from a multi-user system instance, with GPUs.
+  - [x] GPUs and shared nodes: `tests/plugins/flux_samples/gpu_shared`, shown through the neutral `gpu_*` fields.
+  - [ ] An owner and anonymized traces from a multi-user system instance.
   - [x] [CI] Parser, accounting and terminal smoke checks
     (`tests/plugins/test_flux.py`, conformance, sample gate).
 
