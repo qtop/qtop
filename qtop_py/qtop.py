@@ -79,6 +79,8 @@ from qtop_py.web import Web
 if TYPE_CHECKING:
     from typing import Final
 
+logger = logging.getLogger(__name__)
+
 colorize_nodestate = MVU_colorize_nodestate
 
 queue_to_color = colormap_queue_to_color  # re-exported; tools/validate_trace_export.py reads qtop.queue_to_color
@@ -142,11 +144,10 @@ def check_python_version() -> None:
 
 
 def process_args(args: Any) -> Tuple[Any, int]:
-    """Resolve -c AUTO and the remap and names options; return the options and NAMED_WNS."""
+    """Resolve -c AUTO and the names option; return the options and NAMED_WNS."""
     if args.COLOR == "AUTO":
         args.COLOR = "ON" if (os.environ.get("QTOP_COLOR", sys.stdout.isatty()) in ("ON", True)) else "OFF"
-    logging.debug("args.COLOR is now set to: %s", args.COLOR)
-    args.REMAP = False  # Default value
+    logger.debug("args.COLOR is now set to: %s", args.COLOR)
     NAMED_WNS = 1 if args.FORCE_NAMES else 0
     return args, NAMED_WNS
 
@@ -190,9 +191,9 @@ def report_operational_error(error: BaseException, debug: bool = False) -> None:
     sys.stderr.write("qtop: %s\n" % message)
     # Preserve exception chains even at default verbosity, without sending
     # tracebacks to normal console handlers or requiring logging to be ready.
-    logger = logging.getLogger()
-    record = logger.makeRecord(__name__, logging.ERROR, __file__, 0, message, (), sys.exc_info())
-    for handler in logger.handlers:
+    root = logging.getLogger()
+    record = root.makeRecord(__name__, logging.ERROR, __file__, 0, message, (), sys.exc_info())
+    for handler in root.handlers:
         if isinstance(handler, logging.FileHandler):
             handler.handle(record)
     if debug:
@@ -212,7 +213,7 @@ def cli_main() -> int:
             return 0
     except (InvalidScheduler, NoSchedulerFound, SchedulerNotSpecified) as error:
         for line in scheduler_error_lines(error):
-            logging.critical("%s", line)
+            logger.critical("%s", line)
         message = cli_error_message(error)
         if message:
             sys.stderr.write("%s\n" % message)
@@ -225,9 +226,9 @@ def cli_main() -> int:
 # Locations fixed for the whole run: launch directory, package/source root and help file.
 
 
-def apply_demanding(args: Any) -> None:
-    """--demanding turns on the strictest checks together: -S and --strict-parents here; the collector re-validates."""
-    if getattr(args, "DEMANDING", False):
+def apply_strict(args: Any) -> None:
+    """--strict turns on the strictest checks together: -S and --strict-parents here; slurm_json and the collector read STRICT."""
+    if getattr(args, "STRICT", False):
         args.STRICTCHECK = args.STRICT_PARENTS = True
 
 
@@ -237,7 +238,7 @@ def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
     if args.version:
         print("qtop current version: " + __version__)
         sys.exit(0)
-    apply_demanding(args)
+    apply_strict(args)
     utils.init_logging(args)
     resources.logfile = fileutils.active_log_path()
     dynamic_config: Dict[str, Any] = dict()
@@ -263,7 +264,7 @@ def _parse_run_options(resources: RunResources) -> Tuple[Any, Dict[str, Any]]:
 
 def _run_paths() -> RunPaths:
     initial_cwd = os.getcwd()
-    logging.debug("Initial qtop directory: %s", initial_cwd)
+    logger.debug("Initial qtop directory: %s", initial_cwd)
     curpath = os.path.expanduser(initial_cwd)  # where qtop was invoked from
     package_path = os.path.dirname(os.path.realpath(__file__))
     source_path = os.path.dirname(package_path)
@@ -292,7 +293,7 @@ def _start_web(web: Web, config: Dict[str, Any]) -> None:
     web.host = config.get("experimental_web_host", "127.0.0.1")
     web.port = int(config.get("experimental_web_port", 8080))
     web.start()
-    logging.warning("Experimental web interface at http://%s:%s (no authentication or TLS).", web.host, web.port)
+    logger.warning("Experimental web interface at http://%s:%s (no authentication or TLS).", web.host, web.port)
 
 
 def main(resources: RunResources) -> None:
@@ -363,12 +364,12 @@ def main(resources: RunResources) -> None:
                     try:
                         output_partview_fp = next(useful_frames)
                     except StopIteration:
-                        logging.critical("No (more) recorded instances available to show! Exiting...")
+                        logger.critical("No (more) recorded instances available to show! Exiting...")
                         break
                 else:
                     shown_fp = paths.help_fp if dynamic_config.get("show_help") else output_fp
                     output_partview_fp = display.show_part_view(timestr, file=shown_fp, x=viewport.v_start, y=viewport.v_term_size)
-                    logging.debug("Shown file in main loop: %s", shown_fp)
+                    logger.debug("Shown file in main loop: %s", shown_fp)
                 clear_command = ["/usr/bin/clear"]
                 cat_command = ["/bin/cat", output_partview_fp]
                 _ = subprocess.call(clear_command, stdout=stdout, stderr=stdout)  # nosec B603 # nosemgrep - fixed /usr/bin/clear argv

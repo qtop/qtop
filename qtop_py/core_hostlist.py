@@ -7,6 +7,8 @@ import re
 from collections import OrderedDict
 from typing import List, Optional
 
+from qtop_py.core_errors import SchedulerInputError
+
 logger = logging.getLogger(__name__)
 
 
@@ -35,34 +37,34 @@ class HostlistParser:
             for index, char in enumerate(nodelist):
                 if char == "[":
                     if depth:
-                        raise ValueError("nested brackets")
+                        raise SchedulerInputError("nested brackets")
                     depth = 1
                 elif char == "]":
                     if not depth:
-                        raise ValueError("unmatched closing bracket")
+                        raise SchedulerInputError("unmatched closing bracket")
                     depth = 0
                 elif char == "," and not depth:
                     groups.append(nodelist[start:index])
                     start = index + 1
             if depth:
-                raise ValueError("unmatched opening bracket")
+                raise SchedulerInputError("unmatched opening bracket")
             groups.append(nodelist[start:])
 
             expanded: List[str] = []
             for group in groups:
                 if not group or re.search(r"\s", group):
-                    raise ValueError("empty or whitespace-containing host group")
+                    raise SchedulerInputError("empty or whitespace-containing host group")
                 pending = [group]
                 while any("[" in item for item in pending):
                     next_pending = []
                     for item in pending:
                         next_pending.extend(cls._expand_first_range(item))
                         if len(expanded) + len(next_pending) > cls.MAX_EXPANDED_NODES:
-                            raise ValueError("too many expanded hosts")
+                            raise SchedulerInputError("too many expanded hosts")
                     pending = next_pending
                 expanded.extend(pending)
                 if len(expanded) > cls.MAX_EXPANDED_NODES:
-                    raise ValueError("too many expanded hosts")
+                    raise SchedulerInputError("too many expanded hosts")
             return list(OrderedDict.fromkeys(expanded))
         except ValueError as error:
             logger.warning("Ignoring invalid host list %r: %s", nodelist, error)
@@ -73,7 +75,7 @@ class HostlistParser:
         match = re.search(r"\[([^\]]+)\]", value)
         if not match:
             if "[" in value:
-                raise ValueError("empty host range")
+                raise SchedulerInputError("empty host range")
             return [value]
 
         prefix = value[: match.start()]
@@ -81,16 +83,16 @@ class HostlistParser:
         choices = []
         for token in match.group(1).split(","):
             if not re.fullmatch(r"[0-9]+(?:-[0-9]+)?", token):
-                raise ValueError("invalid numeric host range")
+                raise SchedulerInputError("invalid numeric host range")
             if "-" not in token:
                 choices.append(token)
                 continue
             start, end = token.split("-", 1)
             first, last = int(start), int(end)
             if last < first:
-                raise ValueError("descending host range")
+                raise SchedulerInputError("descending host range")
             if len(choices) + last - first + 1 > cls.MAX_EXPANDED_NODES:
-                raise ValueError("too many expanded hosts")
+                raise SchedulerInputError("too many expanded hosts")
             width = len(start)
             choices.extend(str(number).zfill(width) for number in range(first, last + 1))
         return [prefix + choice + suffix for choice in choices]

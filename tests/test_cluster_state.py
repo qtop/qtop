@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from qtop_py.core_api import SchedulerInputError
 from qtop_py.core_cluster_state import build_cluster_state, cluster_state_totals, validate_cluster_state
 from qtop_py.snapshot import Snapshot
 
@@ -170,6 +171,31 @@ def test_node_core_counts_are_bounded_for_every_backend_and_replay(np, valid):
         validate_cluster_state(state)
     else:
         with pytest.raises(ValueError, match="must not exceed 65536 cores"):
+            validate_cluster_state(state)
+
+
+@pytest.mark.parametrize(
+    "cores, valid",
+    [
+        ({0: "42", 1: "42"}, True),
+        ({"0": "42", "1": "42"}, True),
+        ({2: "42"}, False),
+        ({-1: "42"}, False),
+        ({"2": "42"}, False),
+        ({0: "42", "0": "42"}, False),
+        ({"01": "42"}, False),
+        ({"\u00b2": "42"}, False),
+        ({"x": "42"}, False),
+    ],
+    ids=["ints", "texts", "beyond-np", "negative", "text-beyond-np", "int-and-text-twice", "leading-zero", "superscript-digit", "not-a-number"],
+)
+def test_node_cores_must_be_within_np_and_listed_once(cores, valid):
+    state = sample_state()
+    state["nodes"][0]["core_job_map"] = cores
+    if valid:
+        validate_cluster_state(state)
+    else:
+        with pytest.raises(SchedulerInputError, match="node node001 lists core .*, outside its 2 cores or repeated"):
             validate_cluster_state(state)
 
 

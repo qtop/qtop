@@ -68,6 +68,9 @@ lint.extend-select = [
     "PLW0127", "PLW0128",
     # Lazy logging arguments: no formatting when a level is off; SafeLogFormatter escapes the rendered record.
     "G001", "G002", "G003", "G004",
+    # Module loggers (logging.getLogger(__name__)), never logging.info() & co.: those configure the root
+    # logger as a side effect when it has no handlers, e.g. for a program using qtop_py as a library.
+    "LOG015",
 ]
 # The class docstring covers __init__ and dunders; tests document themselves through their names.
 lint.ignore = ["D105", "D107"]

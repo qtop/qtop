@@ -9,7 +9,7 @@ from collections import OrderedDict
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple
 
 from qtop_py import core_yaml_parser as yaml_parser
-from qtop_py.core_api import FileEmptyError, GenericBatchSystem, check_empty_file, open_input
+from qtop_py.core_api import FileEmptyError, GenericBatchSystem, SchedulerInputError, check_empty_file, open_input
 from qtop_py.schedulers.extensions import ExtensionSpec
 from qtop_py.schedulers.tabular import TabularStatExtractor
 
@@ -22,6 +22,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 DEFAULT_NODE_STATE_MAPPING: "Final" = {"Alive": "-", "Dead": "d", "Suspected": "s", "Mixed": "%", "Unknown": "?"}
+
+
+def _resource_id(value: Any) -> int:
+    """Return an oarnodes resource ID as an integer, or raise SchedulerInputError naming it."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise SchedulerInputError("Invalid OAR resource ID %r" % (value,)) from None
 
 
 class OarStatExtractor(TabularStatExtractor):
@@ -59,7 +67,7 @@ class OarStatExtractor(TabularStatExtractor):
                 try:
                     qstat_values = self._process_qstat_line(pattern, line, re_match_positions)
                 except AttributeError as error:
-                    raise ValueError("Cannot parse OAR job row: %s" % line.strip()) from error
+                    raise SchedulerInputError("Cannot parse OAR job row: %s" % line.strip()) from error
                 all_values.append(qstat_values)
 
         return all_values
@@ -125,7 +133,7 @@ class OARBatchSystem(GenericBatchSystem):
                     if not line.strip():
                         rows.append(line)
                         continue
-                    raise ValueError("unsupported job row")
+                    raise SchedulerInputError("unsupported job row")
                 rows.append(
                     "%s %s %s 2000-01-01 00:00:00 %s %s"
                     % (
@@ -147,7 +155,7 @@ class OARBatchSystem(GenericBatchSystem):
                     indent = line[: len(line) - len(line.lstrip())]
                     name, separator, value = line[len(indent) :].partition(":")
                     if not separator or not name or len(value.split()) > 1:
-                        raise ValueError("unsupported node row")
+                        raise SchedulerInputError("unsupported node row")
                     value = value.strip()
                     if not indent:
                         rows.append(mask(name, "node") + ":")
@@ -166,13 +174,13 @@ class OARBatchSystem(GenericBatchSystem):
                 else:
                     # Non-job resource attributes are not consumed by qtop.
                     if ":" not in line:
-                        raise ValueError("unsupported resource row")
+                        raise SchedulerInputError("unsupported resource row")
                     name, value = line.strip().split(":", 1)
                     indent = line[: len(line) - len(line.lstrip())]
                     rows.append(indent + mask(name, "field") + ": " + mask(value.strip()))
                     jobs_list = False
             else:
-                raise ValueError("unsupported trace")
+                raise SchedulerInputError("unsupported trace")
         names = {"oarstat_file": "oarstat.txt", "oarnodes_s_file": "oarnodes_s_Y.txt", "oarnodes_y_file": "oarnodes_Y.txt"}
         return names[key], "\n".join(rows) + "\n"
 
@@ -204,7 +212,7 @@ class OARBatchSystem(GenericBatchSystem):
         resids_jobs = self._read_oarnodes_y_textyaml(self.oarnodes_y_file)
 
         known_jobs = set(job_ids)
-        listed_resources = {int(resid) for resources in nodes_resids.values() for resid, _ in resources}
+        listed_resources = {_resource_id(resid) for resources in nodes_resids.values() for resid, _ in resources}
         unlisted_jobs = {job for jobs in resids_jobs.values() for job in jobs} - known_jobs
         self.diagnostics = {
             "missing_resources": len(listed_resources - set(resids_jobs)),
@@ -218,7 +226,7 @@ class OARBatchSystem(GenericBatchSystem):
         for node in nodes_resids:
             resids_state_lot = nodes_resids[node]
             for resid, state in resids_state_lot:
-                nodes_jobs.setdefault(node, []).append((resids_jobs.get(int(resid), ["?"]), state))
+                nodes_jobs.setdefault(node, []).append((resids_jobs.get(_resource_id(resid), ["?"]), state))
 
         worker_nodes = list()
         node_state_mapping = dict(DEFAULT_NODE_STATE_MAPPING)
@@ -267,7 +275,7 @@ class OARBatchSystem(GenericBatchSystem):
             raise FileNotFoundError("OAR node input is not a regular file: %s" % fn_s)
         logger.debug("File %s exists: %s", fn_s, os.path.isfile(fn_s))
         if os.stat(fn_s).st_size == 0:
-            raise ValueError("OAR node input is empty: %s" % fn_s)
+            raise SchedulerInputError("OAR node input is empty: %s" % fn_s)
         data = yaml_parser.safe_load(fn_s, DEF_INDENT=4, options=self.options)
         return {node: resid_state.items() for node, resid_state in data.items()}
 
@@ -285,7 +293,7 @@ class OARBatchSystem(GenericBatchSystem):
                 if header:
                     resid = int(header.group(1))
                     if resid in resources:
-                        raise ValueError("Duplicate OAR resource ID %s" % resid)
+                        raise SchedulerInputError("Duplicate OAR resource ID %s" % resid)
                     resources[resid] = []
                     jobs_list = False
                 elif resid is not None and text.startswith("jobs:"):
@@ -306,7 +314,7 @@ class OARBatchSystem(GenericBatchSystem):
         tokens = value if isinstance(value, (list, tuple)) else str(value).split(",")
         jobs = [str(token).strip() for token in tokens]
         if any(not re.fullmatch(r"[0-9]+", job) for job in jobs):
-            raise ValueError("Invalid OAR resource job IDs")
+            raise SchedulerInputError("Invalid OAR resource job IDs")
         return list(OrderedDict.fromkeys(jobs))
 
     @staticmethod

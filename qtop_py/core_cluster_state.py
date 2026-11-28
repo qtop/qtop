@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 
     from qtop_py.core_state_types import ClusterState, Job, Node, Queue, RawQueue
 
+from qtop_py.core_errors import SchedulerInputError
 from qtop_py.core_safety import MAX_CORES_PER_NODE
 from qtop_py.schedulers.metadata import extensions, validate_diagnostics, validate_record_extensions
 
@@ -39,7 +40,7 @@ def build_cluster_state(
 ) -> "ClusterState":
     """Return the deliberately boring public representation of a cluster."""
     if len({len(values) for values in (job_ids, users, job_states, job_queues)}) != 1:
-        raise ValueError("job IDs, users, states and queues must have equal lengths")
+        raise SchedulerInputError("job IDs, users, states and queues must have equal lengths")
     jobs: List[Job] = [
         {
             "id": re.sub(r"\[\]$", "", job_id),
@@ -76,6 +77,8 @@ def _record(value: object, label: str) -> Dict[str, object]:
 
 _CORE_KEY_TYPES = frozenset((int, str))
 _TEXT_TYPE = frozenset((str,))
+_CORE_INT_TYPE = frozenset((int,))
+_CORE_TEXT = re.compile(r"0|[1-9][0-9]*")  # str(int) of a core, as mvu_query reads it
 
 
 def _core_job_map_types_valid(cores: Dict[object, object]) -> bool:
@@ -87,19 +90,34 @@ def _core_job_map_types_valid(cores: Dict[object, object]) -> bool:
     return all(isinstance(core, (str, int)) and isinstance(job, str) for core, job in cores.items())
 
 
+def _check_core_positions(name: object, np: int, cores: Dict[object, object]) -> None:
+    """Raise SchedulerInputError unless every core is 0..np-1, as an int or its decimal text, and listed once."""
+    if not cores:
+        return
+    if _CORE_INT_TYPE.issuperset(map(type, cores)):  # fast path: distinct int keys need only a range check
+        if min(cast(Dict[int, object], cores)) >= 0 and max(cast(Dict[int, object], cores)) < np:
+            return
+    seen: Set[int] = set()
+    for core in cores:
+        position = core if type(core) is int else int(core) if isinstance(core, str) and _CORE_TEXT.fullmatch(core) else -1
+        if not 0 <= position < np or position in seen:
+            raise SchedulerInputError("node %s lists core %r, outside its %d cores or repeated" % (name, core, np))
+        seen.add(position)
+
+
 def _schema_version(data: Dict[str, object]) -> int:
     """Return the schema version, 1 when absent, after checking the top-level keys it allows."""
     version = data.get("schema_version", 1)
     if type(version) is not int or version not in SCHEMA_KEYS:
-        raise ValueError("unsupported cluster state schema_version %r" % (version,))
+        raise SchedulerInputError("unsupported cluster state schema_version %r" % (version,))
     if version == 1 and "source" in data:
-        raise ValueError("cluster state source requires schema_version 2")
+        raise SchedulerInputError("cluster state source requires schema_version 2")
     if version == 3 and data.get("schema_revision") != "beta1":
-        raise ValueError("schema_version 3 requires schema_revision beta1")
+        raise SchedulerInputError("schema_version 3 requires schema_revision beta1")
     keys = set(data)
     unknown = keys - extensions().diagnostics.keys() - SCHEMA_KEYS[version] - set(CLUSTER_STATE_KEYS)
     if unknown or not keys.issuperset(CLUSTER_STATE_KEYS):
-        raise ValueError(
+        raise SchedulerInputError(
             "cluster state keys must be jobs, nodes, queues with optional scheduler diagnostics%s"
             % ("; unknown in schema_version %d: %s" % (version, ", ".join(sorted(unknown))) if unknown else "")
         )
@@ -112,31 +130,31 @@ def _qid_prefix(data: Dict[str, object], version: int) -> Optional[str]:
         return None
     source = _record(data.get("source"), "cluster state source")
     if set(source) != {"backend", "cluster_id"} or not all(isinstance(value, str) and value and ":" not in value for value in source.values()):
-        raise ValueError("cluster state source requires nonempty backend and cluster_id text without ':'")
+        raise SchedulerInputError("cluster state source requires nonempty backend and cluster_id text without ':'")
     return "%s:%s:" % (source["backend"], source["cluster_id"])
 
 
 def _validate_identity(key: str, record: Dict[str, object], qid_prefix: Optional[str], qids: Set[str]) -> None:
     if qid_prefix is None:
-        raise ValueError("%s qid and kind require schema_version 2" % key)
+        raise SchedulerInputError("%s qid and kind require schema_version 2" % key)
     if "qid" in record:
         qid = record["qid"]
         native = NATIVE_IDS[key]
         if not isinstance(qid, str) or qid != qid_prefix + cast(str, record[native]):
-            raise ValueError("%s qid must be %s<%s>" % (key, qid_prefix, native))
+            raise SchedulerInputError("%s qid must be %s<%s>" % (key, qid_prefix, native))
         if qid in qids:
-            raise ValueError("%s qid %r is not unique among %s" % (key, qid, key))
+            raise SchedulerInputError("%s qid %r is not unique among %s" % (key, qid, key))
         qids.add(qid)
     if "kind" in record and (key != "jobs" or record["kind"] not in JOB_KINDS):
-        raise ValueError("job kind must be one of %s; nodes have no kind" % ", ".join(JOB_KINDS))
+        raise SchedulerInputError("job kind must be one of %s; nodes have no kind" % ", ".join(JOB_KINDS))
 
 
 def _validate_parent_reference(key: str, record: Dict[str, object], version: int, prefix: Optional[str]) -> None:
     if version != 3 or key != "jobs":
-        raise ValueError("parent_qid requires a schema_version 3 beta1 workload")
+        raise SchedulerInputError("parent_qid requires a schema_version 3 beta1 workload")
     parent = record["parent_qid"]
     if "qid" not in record or not isinstance(parent, str) or not parent.startswith(prefix or "") or parent == prefix:
-        raise ValueError("parent_qid requires a workload qid and a nonempty parent in the same source namespace")
+        raise SchedulerInputError("parent_qid requires a workload qid and a nonempty parent in the same source namespace")
 
 
 def _validate_workload_parents(jobs: List[Dict[str, object]]) -> None:
@@ -147,7 +165,7 @@ def _validate_workload_parents(jobs: List[Dict[str, object]]) -> None:
         path: Set[str] = set()
         while qid in parents and qid not in visited:
             if qid in path:
-                raise ValueError("workload parent_qid containment cycle")
+                raise SchedulerInputError("workload parent_qid containment cycle")
             path.add(qid)
             qid = parents[qid]
         visited.update(path)
@@ -174,30 +192,31 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
             if "qid" in record or "kind" in record:
                 _validate_identity(key, record, qid_prefix, qids[key])
             if key == "jobs" and "accounting_state" in record and record["accounting_state"] not in ("running", "queued", "other"):
-                raise ValueError("job accounting_state must be running, queued or other")
+                raise SchedulerInputError("job accounting_state must be running, queued or other")
             if key == "nodes":
                 np = record.get("np")
                 if isinstance(np, bool) or not isinstance(np, (str, int)):
-                    raise ValueError("node np must be a nonnegative integer or integer string")
+                    raise SchedulerInputError("node np must be a nonnegative integer or integer string")
                 if int(np) < 0:
-                    raise ValueError("node np must be nonnegative")
+                    raise SchedulerInputError("node np must be nonnegative")
                 if int(np) > MAX_CORES_PER_NODE:
-                    raise ValueError("node np must not exceed %d cores" % MAX_CORES_PER_NODE)
+                    raise SchedulerInputError("node np must not exceed %d cores" % MAX_CORES_PER_NODE)
                 qnames, cores = record.get("qname"), record.get("core_job_map")
                 if not isinstance(qnames, list) or any(queue is not None and not isinstance(queue, str) for queue in cast(List[object], qnames)):
                     raise TypeError("node qname must be a list of strings or nulls")
                 if not isinstance(cores, dict) or not _core_job_map_types_valid(cast(Dict[object, object], cores)):
                     raise TypeError("node core_job_map must map integer/string cores to string job IDs")
+                _check_core_positions(record.get("domainname"), int(np), cast(Dict[object, object], cores))
             elif key == "queues":
                 for field in ("running", "queued"):
                     count = record.get(field)
                     if type(count) is not int or count < 0:
-                        raise ValueError("queue %s must be a nonnegative integer" % field)
+                        raise SchedulerInputError("queue %s must be a nonnegative integer" % field)
     jobs = cast(List[Dict[str, object]], data["jobs"])
     if version == 3:
         _validate_workload_parents(jobs)
     if any("accounting_state" in job for job in jobs) and not all("accounting_state" in job for job in jobs):
-        raise ValueError("job accounting_state must be present for all jobs or none")
+        raise SchedulerInputError("job accounting_state must be present for all jobs or none")
     return cast("ClusterState", data)
 
 

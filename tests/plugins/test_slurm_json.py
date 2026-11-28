@@ -368,3 +368,80 @@ def test_version_specific_fixtures_preserve_replay_and_allocation_flags(version,
     assert json.loads(json.dumps(restored.to_cluster_state())) == json.loads(json.dumps(original))
     masked, _ = anonymize_state(original)
     assert Snapshot.from_cluster_state(masked).total_queued_jobs == restored.total_queued_jobs == 1
+
+
+def xjson(paths, key, field, token):
+    """Add field: token (raw JSON text, e.g. 1.5e+00 or -NaN) to every key record, as serializer/xjson writes it."""
+    path = Path(paths[key + "_json"])
+    data = json.loads(path.read_text())
+    for row in data[key]:
+        row[field] = "@TOKEN@"
+    path.write_text(json.dumps(data).replace('"@TOKEN@"', token))
+
+
+def test_serializer_xjson_default_output_reads_like_serializer_json(json_files, caplog):
+    """Slurm 26.11 serializer/xjson: exponent floats, null for non-finite numbers and U+FFFD in strings."""
+    expected = backend(json_files).get_cluster_state(BackendOptions())
+    xjson(json_files, "nodes", "cpu_load", "1.5e+00")
+    xjson(json_files, "nodes", "temperature", "null")
+    xjson(json_files, "nodes", "reason", '"bad \\ufffd byte"')
+    xjson(json_files, "jobs", "billable_tres", '{"set": true, "infinite": false, "number": 4.0e+00}')
+    assert backend(json_files).get_cluster_state(BackendOptions()) == expected
+    assert "not strict" not in caplog.text
+
+
+NON_STRICT = {"nan": "NaN", "minus-nan": "-NaN", "infinity": "Infinity", "minus-infinity": "-Infinity", "hex-escape": '"\\x41\\u0042"'}
+
+
+@pytest.mark.parametrize("token", NON_STRICT.values(), ids=NON_STRICT.keys())
+def test_complex_and_json6_tokens_warn_by_default_and_stop_with_strict(json_files, caplog, token):
+    expected = backend(json_files).get_cluster_state(BackendOptions())
+    xjson(json_files, "nodes", "power", token)
+    assert backend(json_files).get_cluster_state(BackendOptions()) == expected
+    assert "Slurm JSON is not strict RFC 8259 JSON" in caplog.text and "slurm_nodes.json" in caplog.text
+    with pytest.raises(ValueError, match=r"not strict RFC 8259 JSON \(serializer/xjson SerializerParameters=complex or json6\?\).*--strict"):
+        SlurmJSONBatchSystem(json_files, {}, SimpleNamespace(ANONYMIZE=False, SOURCEDIR=True, STRICT=True))
+
+
+def test_non_strict_json_warns_once_per_run_not_every_collection(json_files, caplog):
+    xjson(json_files, "nodes", "power", "-NaN")
+    xjson(json_files, "jobs", "power", "NaN")
+    for _collection in range(3):
+        backend(json_files)
+    warnings = [record.getMessage() for record in caplog.records if "not strict RFC 8259" in record.getMessage()]
+    assert len(warnings) == 2 and "found -NaN or \\x escapes" in warnings[0] and "found NaN" in warnings[1]
+
+
+def test_non_finite_numbers_read_as_unset_where_an_integer_has_a_default(tmp_path):
+    from qtop_py.plugins.slurm_json import integer, read_response
+
+    path = tmp_path / "jobs.json"
+    path.write_text('{"meta":{"plugin":{"data_parser":"v0.0.43"}},"jobs":[{"array_task_id":-NaN,"cpus":Infinity,"het_job_id":null}]}')
+    (row,) = read_response(str(path), "jobs")[1]
+    assert row == {"array_task_id": None, "cpus": None, "het_job_id": None}
+    assert [integer(row[field], 7) for field in row] == [7, 7, 7]
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ('["\\x41"]', '["\\u0041"]'),
+        ('["\\\\x41"]', '["\\\\x41"]'),  # an escaped backslash, then a plain x41
+        ('["-NaN", -NaN]', '["-NaN", NaN]'),
+        ('{"a": "\\"\\x7f"}', '{"a": "\\"\\u007f"}'),
+    ],
+    ids=("escape", "escaped-backslash", "string-left-alone", "after-escaped-quote"),
+)
+def test_lenient_json_rewrites_only_tokens_outside_or_escapes_inside_strings(text, expected):
+    from qtop_py.plugins.slurm_json import lenient_json
+
+    assert lenient_json(text) == expected
+
+
+def test_undecodable_json_is_not_repaired_into_something_else(tmp_path):
+    from qtop_py.plugins.slurm_json import read_response
+
+    path = tmp_path / "jobs.json"
+    path.write_text('{"meta": ')
+    with pytest.raises(ValueError, match="Expecting value"):
+        read_response(str(path), "jobs")

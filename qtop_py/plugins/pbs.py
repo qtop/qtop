@@ -19,7 +19,7 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any, Dict, Iterable, Iterator, List, Optional, TextIO, Tuple, Union, cast
 
-from qtop_py.core_api import FileEmptyError, GenericBatchSystem, check_empty_file, open_input, resolve_job_id
+from qtop_py.core_api import FileEmptyError, GenericBatchSystem, SchedulerInputError, check_empty_file, open_input, resolve_job_id
 from qtop_py.core_safety import load_json
 from qtop_py.schedulers.tabular import TabularStatExtractor
 
@@ -248,9 +248,9 @@ class PBSStatExtractor(TabularStatExtractor):
                     counts = dict(pairs)
                     run, queued = counts["Running"], counts["Queued"]
                     if len(counts) != len(pairs) or not all(re.fullmatch(r"[0-9]+", count) for count in (run, queued)):
-                        raise ValueError("invalid or duplicate job counts")
+                        raise SchedulerInputError("invalid or duplicate job counts")
                 except (KeyError, ValueError, TypeError, AttributeError) as error:
-                    raise ValueError("Invalid PBS state_count for queue %s" % queue_name) from error
+                    raise SchedulerInputError("Invalid PBS state_count for queue %s" % queue_name) from error
                 qstatq_values["run"], qstatq_values["queued"] = run, queued
                 qstatq_values["lm"] = str(queue.get("max_run", queue.get("max_running", "--")))
                 qstatq_values["state"] = "E" if str(queue["enabled"]).lower() == "true" else "D"
@@ -313,7 +313,7 @@ class PBSBatchSystem(GenericBatchSystem):
                         if isinstance(value, str):
                             value = mask.public(value, r"(?:(?:Transit|Queued|Held|Waiting|Running|Exiting|Begun):[0-9]+\s*|[0-9]+|[Tt]rue|[Ff]alse|--)+")
                         elif not isinstance(value, (bool, int, float)):
-                            raise ValueError("unsupported queue scalar")
+                            raise SchedulerInputError("unsupported queue scalar")
                         result[field] = value
                 name = mask(name, "queue")
             records[name] = result
@@ -334,7 +334,7 @@ class PBSBatchSystem(GenericBatchSystem):
                     continue
                 match = re.fullmatch(self.qstat_maker.user_q_search + r"\s*", line)
                 if not match:
-                    raise ValueError("unsupported job row")
+                    raise SchedulerInputError("unsupported job row")
                 rows.append(
                     "%s.server %s %s %s %s %s"
                     % (
@@ -383,9 +383,9 @@ class PBSBatchSystem(GenericBatchSystem):
                         name, value = mask(name, "field"), mask(value)
                     rows.append("     " + name + " = " + value)
                 else:
-                    raise ValueError("unsupported continuation")
+                    raise SchedulerInputError("unsupported continuation")
             else:
-                raise ValueError("unsupported trace")
+                raise SchedulerInputError("unsupported trace")
         return {"qstat_file": "qstat.txt", "qstatq_file": "qstat_q.txt", "pbsnodes_file": "pbsnodes_a.txt"}[key], "\n".join(rows) + "\n"
 
     @staticmethod
@@ -434,7 +434,7 @@ class PBSBatchSystem(GenericBatchSystem):
             try:
                 gpus = int(raw_gpus)
                 if gpus < 0:
-                    raise ValueError("abnormal GPU count")
+                    raise SchedulerInputError("abnormal GPU count")
             except (TypeError, ValueError):
                 logger.warning("Ignoring invalid PBS GPU count %r on node %s", raw_gpus, pbs_values["domainname"])
             else:
@@ -500,7 +500,7 @@ class PBSBatchSystem(GenericBatchSystem):
             elif re.match(r"[\w.-]+", part1):  # PBS Pro job id
                 job, core = part1, part2
             else:
-                raise ValueError("Invalid PBS allocation %r" % core_job)
+                raise SchedulerInputError("Invalid PBS allocation %r" % core_job)
 
             job = re.sub(r"\[\]$", "", job.strip().split("/")[0].split(".")[0])
             if ("," in core) or ("-" in core):  # job id with subjobs

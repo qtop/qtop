@@ -24,7 +24,7 @@ tests/test_core_api.py pins this surface.
 
 from qtop_py.core_cluster_state import build_cluster_state, validate_cluster_state
 from qtop_py.core_collect import BackendOptions, Collection, collect, collect_state, command_env, command_lines, run_commands, trace_files
-from qtop_py.core_errors import OperationalError
+from qtop_py.core_errors import OperationalError, SchedulerInputError
 from qtop_py.core_inputs import FileEmptyError, check_empty_file, open_input
 from qtop_py.core_serialiser import GenericBatchSystem, StatExtractor, resolve_job_id
 from qtop_py.core_source_trace import TraceMasker
@@ -35,6 +35,7 @@ __all__ = [
     "FileEmptyError",
     "GenericBatchSystem",
     "OperationalError",
+    "SchedulerInputError",
     "StatExtractor",
     "TraceMasker",
     "build_cluster_state",

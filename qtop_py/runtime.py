@@ -25,6 +25,8 @@ from qtop_py.ui.viewport import terminal_rows
 if TYPE_CHECKING:
     from qtop_py.web import Web
 
+logger = logging.getLogger(__name__)
+
 
 RunPaths = NamedTuple("RunPaths", [("initial_cwd", str), ("curpath", str), ("qtoppath", str), ("help_fp", str)])
 
@@ -65,7 +67,7 @@ class RunResources(object):
             except (Exception, KeyboardInterrupt, SystemExit) as error:  # noqa: BLE001 - finish every cleanup, then propagate without masking the primary error.
                 failures.append(error)
                 if failed:
-                    logging.warning("Cleanup failed: %s", error)
+                    logger.warning("Cleanup failed: %s", error)
         if not failed and failures:
             raise failures[0]
 
@@ -185,8 +187,8 @@ def get_output_size(max_line_len: int, output_fp: str, max_height: int = 0, term
         if not max_line_len:
             max_line_len = max(len(ansi_escape.sub("", line.strip())) for line in output_lines)
 
-    logging.debug("Total nr of lines: %s", max_height)
-    logging.debug("Max line length: %s", max_line_len)
+    logger.debug("Total nr of lines: %s", max_height)
+    logger.debug("Max line length: %s", max_line_len)
 
     return max_height, max_line_len
 
@@ -201,9 +203,9 @@ def init_dirs(args: Any, _savepath: str) -> Any:
             args.SOURCEDIR = args.source_workspace.name
         else:
             args.SOURCEDIR = os.path.dirname(args.SOURCEDIR)
-    logging.debug("User-defined source directory: %s", args.SOURCEDIR)
+    logger.debug("User-defined source directory: %s", args.SOURCEDIR)
     args.workdir = args.SOURCEDIR or _savepath
-    logging.debug("Working directory is now: %s", args.workdir)
+    logger.debug("Working directory is now: %s", args.workdir)
     # Sonar path finding: -s or savepath is the caller's chosen working directory, by design; see docs/sonar-review.md
     os.chdir(args.workdir)
     return args

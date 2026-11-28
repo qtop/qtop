@@ -16,6 +16,8 @@ from typing import TYPE_CHECKING, DefaultDict, Dict, Iterable, List, Mapping, Tu
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final
 
+logger = logging.getLogger(__name__)
+
 MAX_MEMBERS: "Final" = 10000
 MAX_TRACE_BYTES: "Final" = 256 * 1024 * 1024
 MAX_SET_BYTES: "Final" = 512 * 1024 * 1024
@@ -125,7 +127,7 @@ def _extract_selected(
     members = {key: entries[0] for key, entries in selected.items()}
     if any(member.size > MAX_TRACE_BYTES for member in members.values()) or sum(member.size for member in members.values()) > MAX_SET_BYTES:
         raise ValueError("selected trace set exceeds size limits")
-    logging.debug("Trace archive set: directory=%r capture suffix=%r", *cohort)
+    logger.debug("Trace archive set: directory=%r capture suffix=%r", *cohort)
     paths = {}
     for key in sorted(members):
         member = members[key]
@@ -137,6 +139,6 @@ def _extract_selected(
         with source, os.fdopen(os.open(name, flags, 0o600, dir_fd=workspace), "wb") as output:
             shutil.copyfileobj(source, output, length=64 * 1024)
         target = os.path.join(directory, name)
-        logging.debug("Trace archive member: %s -> %s", member.name, target)
+        logger.debug("Trace archive member: %s -> %s", member.name, target)
         paths[key] = target
     return paths

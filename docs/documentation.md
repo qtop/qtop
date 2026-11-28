@@ -538,7 +538,7 @@ directory, or under ``$QTOP_FALLBACK_DIR`` when that is set. The persistent
 diagnostic log remains under ``~/.local/qtop/logs/`` and falls back the same
 way; if no log location works, qtop runs without a log file. The fallback goes
 through the same private-directory checks; ``--strict-parents`` (or
-``--demanding``) stops with the original error instead. Input files remain where
+``--strict``) stops with the original error instead. Input files remain where
 supplied; this setting does not relocate the log or Python bytecode.
 
 The ``savepath`` expands environment variables and is created with permissions
@@ -1245,10 +1245,14 @@ can be made stricter, one at a time or all at once:
    tightened to mode 0700 and never followed through symbolic links. It also
    disables the best-effort ``/dev/shm`` fallback for ``savepath`` and the log.
 -  Live collection validates each cluster state once, in its collection
-   thread. ``--demanding`` validates it again when the snapshot is built.
+   thread. ``--strict`` validates it again when the snapshot is built.
+-  ``-b slurm_json`` reads non-strict JSON (Slurm 26.11 ``serializer/xjson``
+   with ``SerializerParameters=complex`` or ``json6``) with a warning;
+   ``--strict`` stops instead. See the Slurm JSON backend below.
 
-``--demanding`` turns on all three. It costs about half a second per frame on a
-cluster of several thousand nodes, mostly from the second validation.
+``--strict`` turns on all four; ``--demanding`` is its former name and still
+works. It costs about half a second per frame on a cluster of several thousand
+nodes, mostly from the second validation.
 
 ### Experimental features
 
@@ -1597,6 +1601,16 @@ allocations, invalid GPU indices and out-of-budget topology are rejected.
 Overlapping or over-capacity CPU allocations cannot fit the existing single-job
 CPU map and are rejected rather than silently dropping assignments.
 
+Slurm 26.11 adds `serializer/xjson`, which a site selects with
+`SerializerPlugins` in `slurm.conf`; `scontrol --json` then uses it with the same
+data-parser schema, so `-b slurm_json` reads it unchanged: exponent floats,
+`null` for non-finite numbers (read as unset) and U+FFFD for unsupported code
+points. Its `SerializerParameters=complex` (bare `NaN`, `-NaN`, `Infinity`) and
+`json6` (`\xNN` string escapes) output is not strict RFC 8259 JSON, so it is not
+supported: qtop reads such tokens as unset numbers and escaped characters, with
+one warning per response, and `--strict` stops with an error naming those
+parameters instead.
+
 Socket/core bitmaps are expanded to Slurm abstract CPU IDs using reported node
 SMT topology and compared with per-node allocation counts. Exact full-core
 allocations are labelled `slurm`; partial-SMT placement is labelled `estimated`
@@ -1742,8 +1756,10 @@ with tempfile.TemporaryDirectory() as workdir:
   `SLURM_JSON_SQUEUE`); a switch left out takes its default.
 - `command_lines`, `command_env`, `run_commands` and `trace_files` are the steps
   `collect()` composes, for callers that store or ship traces apart from parsing them.
-- Errors: `OperationalError` for failed commands and missing traces, `ValueError` for
-  unparsable input and a missing `env=`.
+- Errors: `OperationalError` for failed commands and missing traces,
+  `SchedulerInputError` (a `ValueError`) for unparsable input, and `ValueError` for a
+  missing `env=`. qtop reports any other `ValueError` from a backend as unexpected, a
+  possible qtop bug, and `-d` shows its traceback.
 - The record types (`ClusterState`, `Node`, `Job`, ...) are for type checkers only, as
   qtop supports Python 3.6: import them from `qtop_py.core_state_types` under
   `if TYPE_CHECKING:`.
@@ -1773,6 +1789,9 @@ types from `qtop_py/core_state_types.py` under `TYPE_CHECKING`; `tests/test_core
 pins the interface. A backend reports raw
 names: `-A` masks the built state once, for every backend, so it never reads `-A`
 or `-L`. Its options carry only collection settings (`core_api.BackendOptions`).
+Raise `core_api.SchedulerInputError` with a message naming what is wrong when the
+scheduler output cannot be read; a bare `ValueError` (say from `int()` on an unchecked
+field) is reported as a possible qtop bug.
 
 A backend is self-standing: its module declares, on the class, `default_commands`
 (trace key to `"output file, command"`), the `signature_command` that `-b auto` looks

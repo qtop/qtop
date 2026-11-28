@@ -12,6 +12,8 @@ backend produced it, including replayed and --load-sample states.
 import re
 from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, cast
 
+from qtop_py.core_errors import SchedulerInputError
+
 _TEXT_TYPE = frozenset((str,))
 
 Mask = Callable[[str, str], str]
@@ -31,20 +33,20 @@ def validate_text_lists(record: Mapping[str, object], fields: Tuple[str, ...]) -
         if field in record:
             values = record[field]
             if not isinstance(values, list) or not nonempty_texts(cast(List[object], values)):
-                raise ValueError("%s must be a list of nonempty strings" % field)
+                raise SchedulerInputError("%s must be a list of nonempty strings" % field)
 
 
 def validate_identities(record: Mapping[str, object], identities: Tuple[Tuple[str, str, str], ...], label: str) -> None:
     """Raise ValueError unless each (parent, child, separator) identity is numeric and matches the job ID."""
     if len(identities) > 1 and all(parent in record for parent, _, _ in identities):
-        raise ValueError("job cannot have both %s array and heterogeneous identities" % label)
+        raise SchedulerInputError("job cannot have both %s array and heterogeneous identities" % label)
     for parent, child, separator in identities:
         if parent in record or child in record:
             base, index = record.get(parent), record.get(child)
             if not isinstance(base, str) or not isinstance(index, str) or not re.fullmatch(r"[0-9]+", base) or not re.fullmatch(r"[0-9]+", index):
-                raise ValueError("job %s identity requires a numeric parent and task/component ID" % label)
+                raise SchedulerInputError("job %s identity requires a numeric parent and task/component ID" % label)
             if record["id"] != base + separator + index:
-                raise ValueError("job %s identity conflicts with canonical ID" % label)
+                raise SchedulerInputError("job %s identity conflicts with canonical ID" % label)
 
 
 def _no_check(record: Dict[str, object]) -> None:

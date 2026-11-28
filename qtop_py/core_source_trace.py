@@ -9,6 +9,8 @@ import re
 import tarfile
 from typing import Any, Container, Dict, Mapping
 
+from qtop_py.core_errors import SchedulerInputError
+
 
 class TraceMasker:
     """Replace names and IDs in scheduler traces with stable placeholders, per kind."""
@@ -33,9 +35,9 @@ class TraceMasker:
 
     @staticmethod
     def public(value: str, pattern: str) -> str:
-        """Return value if it fully matches pattern, so it can stay unmasked; otherwise raise ValueError."""
+        """Return value if it fully matches pattern, so it can stay unmasked; otherwise raise SchedulerInputError."""
         if re.fullmatch(pattern, value) is None:
-            raise ValueError("unsupported scalar")
+            raise SchedulerInputError("unsupported scalar")
         return value
 
     def words(self, value: str, kind: str = "text") -> str:

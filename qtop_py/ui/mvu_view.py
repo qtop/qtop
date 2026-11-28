@@ -27,6 +27,9 @@ from qtop_py.mvu import MVU_queue_layout
 from qtop_py.mvu_query import WNOccupancy
 from qtop_py.ui.terminal import capture_terminal
 from qtop_py.ui.viewport import terminal_rows
+from qtop_py.user_details import user_detail_option
+
+logger = logging.getLogger(__name__)
 
 # Accounts-table state columns when accounts_states is unset: jobs >= R + Q + O(ther), as the Summary's Total=R+Q+Other.
 DEFAULT_ACCOUNT_STATES: "Final" = ("running_of_user", "queued_of_user", "other_of_user")
@@ -174,8 +177,8 @@ class TextDisplay(object):
         total_queued_jobs = cluster.total_queued_jobs
         queues = cluster.queues_dict
 
-        if self.args.REMAP:
-            logging.warning("Remapping WN names and retrying heuristics")
+        if cluster.remap:
+            logger.warning("Remapping WN names and retrying heuristics")
 
         ansi_delete_char = "\015"  # this removes the first ever character (space) appearing in the output
         print(
@@ -364,7 +367,7 @@ class TextDisplay(object):
 
     def display_account_table_header(self) -> None:
         """Print the shared column labels for account rows and independent totals."""
-        if getattr(self.args, "SHOW_GROUPS", False):
+        if user_detail_option(self.args, "SHOW_GROUPS"):
             detail_header = "GECOS field              | primary group        |"
         else:
             detail_header = "Grid certificate DN (info only available under elevated privileges)" if self.args.CLASSIC else "      GECOS field or Grid certificate DN |"
@@ -377,7 +380,7 @@ class TextDisplay(object):
         if totals:
             print(self.MVU_model.MVU_colorize("\n===> 4. Account totals <===", "White"))
             self.display_account_table_header()
-            self.display_account_jobs_line(totals, "account_not_colored", {}, {} if getattr(self.args, "SHOW_GROUPS", False) else None, highlight=True)
+            self.display_account_jobs_line(totals, "account_not_colored", {}, {} if user_detail_option(self.args, "SHOW_GROUPS") else None, highlight=True)
 
     @staticmethod
     def account_jobs_totals(account_jobs_table: Sequence[Sequence[Any]], nodes_in_use: int) -> Optional[List[Any]]:
@@ -572,7 +575,7 @@ class TextDisplay(object):
             max_width = len(joined_list)
             self.viewport.max_width = max_width
 
-            logging.debug("Printed horizontally from %s to %s", self.viewport.h_start, self.viewport.h_stop)
+            logger.debug("Printed horizontally from %s to %s", self.viewport.h_start, self.viewport.h_stop)
         else:
             self.viewport.max_width = self.viewport.get_term_size()[1]
         print()
@@ -593,7 +596,7 @@ class TextDisplay(object):
                 node_column_stop += self.config["USER_CUT_MATRIX_WIDTH"]
             else:
                 node_column_stop += term_columns - DEADWEIGHT
-            node_column_stop = min(node_column_stop, self.cluster.total_wn) if self.args.REMAP else min(node_column_stop, self.cluster.highest_wn)
+            node_column_stop = min(node_column_stop, self.cluster.total_wn) if self.cluster.remap else min(node_column_stop, self.cluster.highest_wn)
 
             self.display_matrix(wns_occupancy, node_column_start, node_column_stop)
 

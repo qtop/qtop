@@ -9,6 +9,7 @@ from before TPU/NPU support keep their meaning.
 import re
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
+from qtop_py.core_errors import SchedulerInputError
 from qtop_py.core_hostlist import HostlistParser
 
 if TYPE_CHECKING:
@@ -73,19 +74,19 @@ def _gres_indices(detail: Optional[str], count: int, kind: str) -> Optional[List
     if not detail or detail == "IDX:N/A" or re.fullmatch(r"S:[0-9,-]+", detail):
         return None
     if not detail.startswith("IDX:"):
-        raise ValueError("Unrecognized %s GRES detail" % kind.upper())
+        raise SchedulerInputError("Unrecognized %s GRES detail" % kind.upper())
     indices: List[int] = []
     for token in detail[4:].split(","):
         span = re.fullmatch(r"([0-9]{1,10})(?:-([0-9]{1,10}))?", token)
         if span is None:
-            raise ValueError("Invalid %s index range" % kind.upper())
+            raise SchedulerInputError("Invalid %s index range" % kind.upper())
         first = int(span.group(1))
         last = int(span.group(2)) if span.group(2) is not None else first
         if last < first or len(indices) + last - first + 1 > MAX_GPU_INDICES:
-            raise ValueError("Invalid or oversized %s index range" % kind.upper())
+            raise SchedulerInputError("Invalid or oversized %s index range" % kind.upper())
         indices.extend(range(first, last + 1))
     if len(indices) != count or len(set(indices)) != len(indices):
-        raise ValueError("%s count and indices disagree" % kind.upper())
+        raise SchedulerInputError("%s count and indices disagree" % kind.upper())
     return indices
 
 
@@ -93,7 +94,7 @@ def _gres_resource(entry: str, kind: str) -> "GPUResource":
     """Parse one kind:[type:]count[(detail)] GRES entry."""
     match = re.fullmatch(r"[a-z]{3}:(?:([^:(),\s]+):)?([0-9]{1,10})(?:\(([^()]*)\))?", entry)
     if match is None:
-        raise ValueError("Invalid %s GRES entry" % kind.upper())
+        raise SchedulerInputError("Invalid %s GRES entry" % kind.upper())
     gres_type, count_text, detail = match.groups()
     count = int(count_text)
     profile = re.search(r"(?:^|[_-])([1-9][0-9]*g\.[1-9][0-9]*gb)(?:$|[_-])", gres_type or "", re.IGNORECASE) if kind == "gpu" else None
@@ -230,44 +231,44 @@ def _validate_text_fields(resource: Mapping[str, Any]) -> None:
     """type, mig_profile and parent_gpu_uuid are text or null; a MIG profile looks like 1g.10gb."""
     for field in ("type", "mig_profile", "parent_gpu_uuid"):
         if field not in resource or (resource[field] is not None and not isinstance(resource[field], str)):
-            raise ValueError("GPU %s must be text or null" % field)
+            raise SchedulerInputError("GPU %s must be text or null" % field)
     profile = resource["mig_profile"]
     if profile is not None and not re.fullmatch(r"[1-9][0-9]*g\.[1-9][0-9]*gb", profile):
-        raise ValueError("Invalid MIG profile")
+        raise SchedulerInputError("Invalid MIG profile")
 
 
 def _validate_indices(resource: Mapping[str, Any]) -> None:
     """device_indices is null, or count distinct nonnegative integers."""
     if "device_indices" not in resource:
-        raise ValueError("GPU device_indices is required")
+        raise SchedulerInputError("GPU device_indices is required")
     indices = resource["device_indices"]
     if indices is None:
         return
     if not isinstance(indices, list) or len(indices) > MAX_GPU_INDICES or any(type(index) is not int or index < 0 for index in indices):
-        raise ValueError("GPU device_indices must be nonnegative integers or null")
+        raise SchedulerInputError("GPU device_indices must be nonnegative integers or null")
     if len(indices) != resource["count"] or len(set(indices)) != len(indices):
-        raise ValueError("GPU count and indices disagree")
+        raise SchedulerInputError("GPU count and indices disagree")
 
 
 def _validate_kind(resource: Mapping[str, Any]) -> None:
     """An optional kind is tpu, npu or gpu; only GPUs have MIG profiles."""
     if "kind" in resource and resource["kind"] not in ACCELERATOR_KINDS:
-        raise ValueError("Accelerator kind must be one of %s" % ", ".join(ACCELERATOR_KINDS))
+        raise SchedulerInputError("Accelerator kind must be one of %s" % ", ".join(ACCELERATOR_KINDS))
     if resource["mig_profile"] is not None and resource_kind(resource) != "gpu":
-        raise ValueError("Only GPUs have MIG profiles")
+        raise SchedulerInputError("Only GPUs have MIG profiles")
 
 
 def validate_gpu_resources(value: object, binding: bool = False) -> None:
     """Validate structured accelerator metadata read from portable snapshots; bindings also need a job_id."""
     if not isinstance(value, list):
-        raise ValueError("GPU resources must be a list")
+        raise SchedulerInputError("GPU resources must be a list")
     for resource in value:
         if not isinstance(resource, dict):
-            raise ValueError("GPU resource must be an object")
+            raise SchedulerInputError("GPU resource must be an object")
         if type(resource.get("count")) is not int or resource["count"] < 0:
-            raise ValueError("GPU count must be a nonnegative integer")
+            raise SchedulerInputError("GPU count must be a nonnegative integer")
         _validate_text_fields(resource)
         _validate_indices(resource)
         _validate_kind(resource)
         if binding and (not isinstance(resource.get("job_id"), str) or not resource["job_id"]):
-            raise ValueError("GPU binding requires a job_id")
+            raise SchedulerInputError("GPU binding requires a job_id")

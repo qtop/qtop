@@ -15,6 +15,14 @@ from qtop_py.core_process import DEFAULT_SCHEDULER_COMMAND_TIMEOUT, communicate_
 from qtop_py.core_safety import visible_text
 from qtop_py.input_parsing import extract_regex_detail
 
+logger = logging.getLogger(__name__)
+
+
+def user_detail_option(args: Any, name: str) -> bool:
+    """Whether GET_GECOS or SHOW_GROUPS is on; never while saving an anonymized sample (-A -L), which must hold no real names."""
+    masked_sample = getattr(args, "SAMPLE", False) and getattr(args, "ANONYMIZE", False) and not getattr(args, "load_sample", None)
+    return bool(getattr(args, name, False)) and not masked_sample
+
 
 def MVU_resolve_user_details(model: Any, occupancy: Any, force: bool = False) -> None:
     """Load user full names into the model, only if the accounts table is shown (or force is set)."""
@@ -27,7 +35,7 @@ def MVU_resolve_user_details(model: Any, occupancy: Any, force: bool = False) ->
         return
     model.user_details = {
         "names": get_detail_of_name(occupancy.account_jobs_table, model.config, model.args),
-        "groups": get_primary_group_names(occupancy.account_jobs_table) if getattr(model.args, "SHOW_GROUPS", False) else None,
+        "groups": get_primary_group_names(occupancy.account_jobs_table) if user_detail_option(model.args, "SHOW_GROUPS") else None,
     }
 
 
@@ -41,31 +49,32 @@ def get_detail_of_name(account_jobs_table: Sequence[Sequence[Any]], config: Dict
     field_idx = int(extract_info.get("field_to_use", 5))
     regex = extract_info.get("regex", None)
 
-    command_key = "user_details_realtime" if args.GET_GECOS else "user_details_cache"
+    realtime = user_detail_option(args, "GET_GECOS")
+    command_key = "user_details_realtime" if realtime else "user_details_cache"
     command = extract_info.get(command_key)
     if not isinstance(command, str) or not command.strip():
-        logging.warning("No valid %s command in %s; skipping user details.", command_key, QTOPCONF_YAML)
+        logger.warning("No valid %s command in %s; skipping user details.", command_key, QTOPCONF_YAML)
         return {}
 
     try:
-        if args.GET_GECOS:
+        if realtime:
             users = " ".join(shlex.quote(str(line[4])) for line in account_jobs_table if line[4] != "Totals")
             command = command % users
         user_details_command = shlex.split(command)
-        if not args.GET_GECOS:
+        if not realtime:
             user_details_command[-1] = os.path.expandvars(user_details_command[-1])
         timeout = positive_timeout(config.get("scheduler_command_timeout", DEFAULT_SCHEDULER_COMMAND_TIMEOUT))
         p = start_command(user_details_command, os.environ)
         raw_output, raw_err = communicate_with_timeout(p, timeout)
         output, err = (raw_output or b"").decode("utf-8", errors="replace"), raw_err.decode("utf-8", errors="replace")
     except (OperationalError, OSError, ValueError, TypeError, IndexError, OverflowError, subprocess.TimeoutExpired) as error:
-        logging.warning("Cannot collect %s command %r: %s; skipping user details.", command_key, command, error)
+        logger.warning("Cannot collect %s command %r: %s; skipping user details.", command_key, command, error)
         return {}
     if p.returncode:
-        logging.warning("%s failed (exit %s): %s; skipping user details.", command_key, p.returncode, err.strip()[:300])
+        logger.warning("%s failed (exit %s): %s; skipping user details.", command_key, p.returncode, err.strip()[:300])
         return {}
     if err:
-        logging.warning("%s: %s", command_key, err.strip()[:300])
+        logger.warning("%s: %s", command_key, err.strip()[:300])
 
     detail_of_name = dict()
     for line in output.split("\n"):
@@ -90,13 +99,13 @@ def get_primary_group_name(user: str) -> str:
         import grp
         import pwd
     except ImportError:
-        logging.warning("Unix group information is unavailable on this platform.")
+        logger.warning("Unix group information is unavailable on this platform.")
         return ""
 
     try:
         return grp.getgrgid(pwd.getpwnam(user).pw_gid).gr_name
     except (KeyError, OSError):
-        logging.warning("Could not resolve the primary Unix group for %s.", user)
+        logger.warning("Could not resolve the primary Unix group for %s.", user)
         return ""
 
 

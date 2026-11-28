@@ -1,6 +1,6 @@
 .\" Copyright (c) 2026 qtop contributors
 .\" SPDX-License-Identifier: MIT
-.TH QTOP 1 "2026-11-25" "qtop 0.9.20261125" "User Commands"
+.TH QTOP 1 "2026-11-26" "qtop 0.9.20261126" "User Commands"
 .nh
 .SH NAME
 qtop \- text-mode monitor of batch-cluster utilization and job status
@@ -264,13 +264,21 @@ only behind an authenticating reverse proxy.
 Print debug messages and operational-error tracebacks to standard error and
 the log file.
 .TP
-.B \-\-demanding
+.BR \-\-strict ", " \-\-demanding
 Turn on every strict check at once:
 .BR \-S ,
 .BR \-\-strict\-parents ,
+stopping on Slurm JSON that is not strict RFC 8259 JSON (Slurm 26.11
+.B serializer/xjson
+with
+.B SerializerParameters=complex
+or
+.BR json6 ),
 and validating each live-collected cluster state a second time when the
 snapshot is built (live collection otherwise validates it once). Slower on
 large clusters.
+.B \-\-demanding
+is the former name.
 .TP
 .B \-\-strict\-parents
 Stop when a parent directory of

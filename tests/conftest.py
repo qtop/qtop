@@ -9,12 +9,18 @@ from pathlib import Path
 
 import pytest
 
-from qtop_py import qtop, utils
+from qtop_py import core_warnings, qtop, utils
 
 ROOT = Path(__file__).resolve().parents[1]
 MISSING = object()
 # Module attributes the retired legacy adapters read via globals(); a run must not bring any of them back.
 MODULE_STATE = ("QTOPPATH", "HELP_FP", "scheduler", "config", "dynamic_config", "viewport", "user_to_color", "args", "snapshot", "transposed_sections")
+
+
+@pytest.fixture(autouse=True)
+def fresh_warnings():
+    """Each test is a new run: no once-per-run warning has been given yet."""
+    core_warnings.reset()
 
 
 @pytest.fixture

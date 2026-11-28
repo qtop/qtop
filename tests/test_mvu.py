@@ -26,7 +26,7 @@ def MVU_test_model(tmp_path, monkeypatch):
     root = Path(__file__).resolve().parents[1]
     monkeypatch.setattr(sys, "argv", ["qtop", "-b", "slurm", "-F", "-o", "savepath=" + str(tmp_path)])
     args = utils.parse_qtop_cmdline_args()
-    args.COLOR, args.REMAP = "OFF", False
+    args.COLOR = "OFF"
     config, users, states = configuration.prepare_config(yaml_parser.parse(str(root / "qtopconf.yaml")), args)
     source = root / "tests/plugins/slurm_samples/basic"
     backend = SlurmBatchSystem({"squeue_file": str(source / "squeue.txt"), "sinfo_file": str(source / "sinfo.txt")}, config, args)
@@ -191,7 +191,7 @@ def test_MVU_query_and_view_need_no_runtime_globals_or_mutable_snapshot(tmp_path
     assert model.snapshot.worker_nodes == original_nodes
     assert model.config == original_config
     assert vars(model.viewport) == original_viewport
-    assert model.args.REMAP is False
+    assert not hasattr(model.args, "REMAP")  # derived state stays on the cluster
 
 
 # Running/queued counts per user; "all" adds jobs in other states (e.g. completed).

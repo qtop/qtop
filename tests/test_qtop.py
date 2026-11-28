@@ -630,6 +630,7 @@ def test_strict_check_counts_unique_jobs_across_slots_nodes_and_shared_resources
 
 def test_queueing_summary_preserves_order_and_expands(capsys):
     class Cluster(object):
+        remap = False
         total_running_jobs = 2
         total_queued_jobs = 1
         queues_dict = {
@@ -642,7 +643,7 @@ def test_queueing_summary_preserves_order_and_expands(capsys):
         working_cores = 2
         total_cores = 4
 
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, EXPAND_QUEUES=True, COLOR="OFF")
+    args = SimpleNamespace(CLASSIC=False, WATCH=True, EXPAND_QUEUES=True, COLOR="OFF")
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("slurm"))
     mvu_view.TextDisplay(None, {}, None, None, Cluster(), args, MVU_model=model).display_job_accounting_summary(Cluster(), None)
 
@@ -656,8 +657,10 @@ def test_queueing_summary_preserves_order_and_expands(capsys):
 )
 def test_queue_summary_expands_in_watch_mode_when_wider_than_the_terminal(capsys, queues, watch, overrides, expanded):
     queues_dict = {"queue_%03d" % index: SimpleNamespace(run="1", queued="2", state="E") for index in range(queues)}
-    cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict=queues_dict, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, NO_WRAP_QUEUES=False, COLOR="OFF")
+    cluster = SimpleNamespace(
+        remap=False, total_running_jobs=0, total_queued_jobs=0, queues_dict=queues_dict, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0
+    )
+    args = SimpleNamespace(CLASSIC=False, WATCH=watch, ANONYMIZE=True, NO_WRAP_QUEUES=False, COLOR="OFF")
     viewport = Viewport()
     viewport.set_term_size(40, 100)
     model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides=overrides)
@@ -674,8 +677,10 @@ def test_expanded_queues_align_and_count_other_jobs_per_queue(capsys, monkeypatc
     queues = {"batch": SimpleNamespace(run="2", queued="1", state="E"), "q": SimpleNamespace(run="0", queued="105", state="D")}
     listing = (("R", "batch"), ("R", "batch"), ("Q", "batch"), ("C", "batch"), ("E", "batch"), ("W", "q"))  # q's W is in its 105 already
     jobs = {str(n): SimpleNamespace(job_state=state, job_queue=queue) for n, (state, queue) in enumerate(listing)}
-    cluster = SimpleNamespace(total_running_jobs=12, total_queued_jobs=108, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=False, EXPAND_QUEUES=True, ANONYMIZE=True, COLOR=color)
+    cluster = SimpleNamespace(
+        remap=False, total_running_jobs=12, total_queued_jobs=108, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0
+    )
+    args = SimpleNamespace(CLASSIC=False, WATCH=False, EXPAND_QUEUES=True, ANONYMIZE=True, COLOR=color)
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("pbs"))
     config = {"state_abbreviations": {"pbs": PBS_STATES}}
     mvu_view.TextDisplay(SimpleNamespace(jobs_dict=jobs), config, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(
@@ -689,6 +694,7 @@ def test_expanded_queues_align_and_count_other_jobs_per_queue(capsys, monkeypatc
 
 def test_demo_notice_uses_high_contrast_blue(monkeypatch):
     class Cluster(object):
+        remap = False
         total_running_jobs = 0
         total_queued_jobs = 0
         queues_dict = {}
@@ -698,7 +704,7 @@ def test_demo_notice_uses_high_contrast_blue(monkeypatch):
         working_cores = 0
         total_cores = 0
 
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, COLOR="OFF")
+    args = SimpleNamespace(CLASSIC=False, WATCH=True, COLOR="OFF")
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("demo"))
     color_calls = []
 
@@ -725,8 +731,8 @@ def test_demo_notice_uses_high_contrast_blue(monkeypatch):
     (("demo", True, "ON", "\x1b[1;33m"), ("demo", True, "OFF", "\x1b[1m"), ("demo", False, "OFF", None), ("slurm", True, "OFF", "\x1b[1m"), ("slurm", False, "ON", None)),
 )
 def test_watch_mode_lists_keys_above_the_summary(capsys, scheduler, watch, color, key_style):
-    cluster = SimpleNamespace(total_running_jobs=0, total_queued_jobs=0, queues_dict={}, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR=color)
+    cluster = SimpleNamespace(remap=False, total_running_jobs=0, total_queued_jobs=0, queues_dict={}, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
+    args = SimpleNamespace(CLASSIC=False, WATCH=watch, ANONYMIZE=True, COLOR=color)
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend(scheduler))
     mvu_view.TextDisplay(None, {}, None, None, cluster, args, MVU_model=model).display_job_accounting_summary(cluster, None)
 
@@ -1114,7 +1120,8 @@ def test_node_filters_enable_compact_mapping(dynamic, rule, expected):
     model = explicit_model(config, args, display_overrides={"filtering": [rule]} if dynamic else {})
     cluster = Cluster(snapshot, nodes, WNFilter, config, args, MVU_model=model)
 
-    assert args.REMAP is True
+    assert cluster.remap is True
+    assert not hasattr(args, "REMAP")
     assert [node["domainname"] for node in cluster.workernode_dict.values()] == expected
     assert cluster.total_wn == cluster.available_wn == len(expected)
     assert cluster.working_cores == len(expected)
@@ -1292,11 +1299,12 @@ LISTED = ["R"] * 7 + ["Q", "Q", "W", "W", "C"]
 
 def _summary(config, jobs_states, color="OFF", queues=True):
     class Cluster(object):
+        remap = False
         total_running_jobs, total_queued_jobs = 7, 4
         queues_dict = {"batch": SimpleNamespace(run="7", queued="4", state="E")} if queues else {}
         total_wn = offdown_nodes = available_wn = working_cores = total_cores = 0
 
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, COLOR=color)
+    args = SimpleNamespace(CLASSIC=False, WATCH=True, COLOR=color)
     model = MVU_Model({}, args, None, backend=qtop_module.scheduler_backend("pbs"))
     snapshot = SimpleNamespace(jobs_dict={str(n): SimpleNamespace(job_state=state) for n, state in enumerate(jobs_states)})
     config = dict(config, state_abbreviations={"pbs": PBS_STATES})
@@ -1387,8 +1395,10 @@ def test_queued_counts_share_summary_background_without_changing_table_alignment
 @pytest.mark.parametrize("clipped", (False, True), ids=("compact", "clipped"))
 def test_no_wrap_queues_clips_only_the_queueing_row(capsys, color, clipped):
     queues = {"queue_%03d" % index: SimpleNamespace(run="1", queued="2", state="E") for index in range(150)}
-    cluster = SimpleNamespace(total_running_jobs=150, total_queued_jobs=300, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, NO_WRAP_QUEUES=clipped, COLOR=color)
+    cluster = SimpleNamespace(
+        remap=False, total_running_jobs=150, total_queued_jobs=300, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0
+    )
+    args = SimpleNamespace(CLASSIC=False, WATCH=True, NO_WRAP_QUEUES=clipped, COLOR=color)
     viewport = Viewport()
     viewport.set_term_size(40, 40)
     model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides={} if clipped else {"queue_summary_layout": "compact"})
@@ -1406,8 +1416,10 @@ def test_no_wrap_queues_clips_only_the_queueing_row(capsys, color, clipped):
 @pytest.mark.parametrize("color", ("ON", "OFF"))
 def test_hidden_queue_layout_drops_only_the_queueing_lines(capsys, color):
     queues = {"long": SimpleNamespace(run="1", queued="2", state="E")}
-    cluster = SimpleNamespace(total_running_jobs=1, total_queued_jobs=2, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0)
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=True, NO_WRAP_QUEUES=True, COLOR=color)
+    cluster = SimpleNamespace(
+        remap=False, total_running_jobs=1, total_queued_jobs=2, queues_dict=queues, total_wn=0, offdown_nodes=0, available_wn=0, working_cores=0, total_cores=0
+    )
+    args = SimpleNamespace(CLASSIC=False, WATCH=True, NO_WRAP_QUEUES=True, COLOR=color)
     viewport = Viewport()
     viewport.set_term_size(40, 80)
     model = MVU_Model({}, args, viewport, backend=qtop_module.scheduler_backend("pbs"), display_overrides={"queue_summary_layout": "hidden"})
@@ -1423,11 +1435,13 @@ def test_queue_labels_match_matrix_letter_backgrounds(capsys, expanded, configur
     from qtop_py.mvu import MVU_keep_queue_initials_only_and_colorize
 
     config = {"palettes": {"PALETTES": ["custom"], "custom": {"White": "0;30;43", "BlackOnBlue": "0;30;44"}}}
-    args = SimpleNamespace(REMAP=False, CLASSIC=False, WATCH=False, EXPAND_QUEUES=expanded, ANONYMIZE=True, COLOR="ON")
+    args = SimpleNamespace(CLASSIC=False, WATCH=False, EXPAND_QUEUES=expanded, ANONYMIZE=True, COLOR="ON")
     model = MVU_Model(config, args, None, backend=qtop_module.scheduler_backend("slurm"), user_to_color={"NoPattern": "White"})
     model.queue_to_color = {"batch": "BlackOnBlue"} if configured else {}
     queue = SimpleNamespace(run="1", queued="0", state="up")
-    cluster = SimpleNamespace(total_running_jobs=1, total_queued_jobs=0, queues_dict={"batch": queue}, total_wn=1, offdown_nodes=0, available_wn=0, working_cores=1, total_cores=1)
+    cluster = SimpleNamespace(
+        remap=False, total_running_jobs=1, total_queued_jobs=0, queues_dict={"batch": queue}, total_wn=1, offdown_nodes=0, available_wn=0, working_cores=1, total_cores=1
+    )
     display = mvu_view.TextDisplay(None, config, None, None, cluster, args, MVU_model=model)
     display.display_job_accounting_summary(cluster, None)
     output = capsys.readouterr().out

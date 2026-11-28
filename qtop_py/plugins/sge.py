@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple, cast
 from xml.etree import ElementTree as etree  # nosec B405 # nosemgrep - NoDTDTreeBuilder rejects every DTD, so no entity expansion; no runtime deps
 
 from qtop_py import core_safety as safety
-from qtop_py.core_api import GenericBatchSystem, OperationalError, StatExtractor, check_empty_file, open_input
+from qtop_py.core_api import GenericBatchSystem, OperationalError, SchedulerInputError, StatExtractor, check_empty_file, open_input
 
 if TYPE_CHECKING:
     from qtop_py.core_api import TraceMasker
@@ -93,7 +93,7 @@ class SGEStatExtractor(StatExtractor):
     def _check_queue_list_nametag(queue_list_nametag: etree.Element) -> None:
         """Require a Queue-List name of the form queue@node."""
         if (queue_list_nametag.text or "").count("@") != 1:  # nonempty, checked by the caller
-            raise ValueError("SGE Queue-List name is not queue@node: %r" % queue_list_nametag.text)
+            raise SchedulerInputError("SGE Queue-List name is not queue@node: %r" % queue_list_nametag.text)
 
     def get_xml_tree(self, xml_file: str) -> Tuple[etree.ElementTree, Any]:
         """Parse an XML file within the size and nesting limits, rejecting DTDs; return the tree and root."""
@@ -110,7 +110,7 @@ class SGEStatExtractor(StatExtractor):
                 tree = etree.ElementTree(parser.close())
             except (etree.ParseError, IOError):
                 raise
-            except Exception as error:
+            except Exception as error:  # any other parser failure is unreadable input, logged with its traceback.
                 logger.debug("XML file state %s", fin, exc_info=True)
                 raise OperationalError("Cannot read SGE XML %s: %s" % (xml_file, error)) from error
             else:
@@ -140,7 +140,7 @@ class SGEStatExtractor(StatExtractor):
                         raise etree.ParseError("SGE XML requires a nonempty hostname resource")
                     break
             else:
-                raise ValueError("No such queue name")
+                raise SchedulerInputError("No such queue name")
 
             try:
                 all_values = self._extract_job_info(all_values, queue_elem, "job_list", queue_name=queue_name_elem.text)
@@ -172,7 +172,7 @@ class SGEStatExtractor(StatExtractor):
             qstat_values["Queue"] = queue_name
             all_values.append(qstat_values)
         if not all_values:
-            raise ValueError("No jobs found in XML file!")
+            raise SchedulerInputError("No jobs found in XML file!")
 
         return all_values
 
@@ -232,7 +232,7 @@ class SGEBatchSystem(GenericBatchSystem):
     def mask_source_trace(self, key: str, text: str, mask: "TraceMasker") -> Tuple[str, str]:
         """Return the masked name and XML text of a qstat -xml trace."""
         if key != "sge_file":
-            raise ValueError("unsupported trace")
+            raise SchedulerInputError("unsupported trace")
         parser = _xml_parser()
         root = etree.fromstring(text, parser=parser)  # nosec B314
         numeric = {"slots_used", "slots_resv", "slots_total", "slots", "tasks", "JAT_prio", "JB_job_number"}
@@ -255,7 +255,7 @@ class SGEBatchSystem(GenericBatchSystem):
         }
         for element in root.iter():
             if element.tag not in tags or set(element.attrib) - {"name", "state", "type"}:
-                raise ValueError("unsupported XML field")
+                raise SchedulerInputError("unsupported XML field")
             resource = element.attrib.get("name", "") if element.tag == "resource" else ""
             value = element.text or ""
             kind = tag_kinds.get(element.tag) or resource_kinds.get(resource)
@@ -453,7 +453,7 @@ class SGEBatchSystem(GenericBatchSystem):
                     queue_name = cast(str, _queue_name.text)  # likewise
                     break
             else:
-                raise ValueError("No such resource")
+                raise SchedulerInputError("No such resource")
 
             for exist_d in qstatq_list:
                 if queue_name == exist_d["queue_name"]:

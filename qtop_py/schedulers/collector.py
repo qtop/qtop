@@ -3,6 +3,7 @@
 """Scheduler-neutral command collection, capture and snapshot orchestration."""
 
 import copy
+import json
 import logging
 import os
 import tarfile
@@ -17,13 +18,20 @@ from qtop_py import core_sample as sample
 from qtop_py.colormap import user_to_color_default
 from qtop_py.configuration import CONFIG_ERRORS
 from qtop_py.constants import QTOPCONF_YAML
-from qtop_py.core_api import GenericBatchSystem, OperationalError
+from qtop_py.core_api import GenericBatchSystem, OperationalError, SchedulerInputError
+from qtop_py.core_safety import ResourceLimitError
 from qtop_py.runtime import RunPaths, RunResources
 from qtop_py.schedulers.registry import decide_batch_system
 from qtop_py.snapshot import Snapshot
 
 if TYPE_CHECKING:
     from qtop_py import core_state_types as state_types
+
+logger = logging.getLogger(__name__)
+
+
+# What a backend raises for unreadable scheduler output; MVU_collect_snapshot reports anything else as unexpected.
+INPUT_ERRORS = (SchedulerInputError, ResourceLimitError, json.JSONDecodeError, UnicodeError, ParseError)
 
 
 def finalize_filepaths_schedulercommands(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, Tuple[str, str]]:
@@ -64,9 +72,12 @@ def get_input_filenames(INPUT_FNs_commands: Mapping[str, Tuple[str, str]], confi
 def fetch_scheduler_files(args: Any, config: Dict[str, Any], backend: Type[GenericBatchSystem]) -> Dict[str, str]:
     """Return the scheduler trace files, collected live or read from -s; raise OperationalError on bad commands."""
     scheduler_name = backend.get_mnemonic()
+    entries = config["schedulers"].get(scheduler_name)
+    if not isinstance(entries, Mapping):
+        raise OperationalError("Invalid scheduler command configuration for %s in %s: expected a mapping of trace keys to commands" % (scheduler_name, QTOPCONF_YAML))
     try:
         INPUT_FNs_commands = finalize_filepaths_schedulercommands(args, config, backend)
-    except (ValueError, TypeError, KeyError, AttributeError) as error:
+    except ValueError as error:
         raise OperationalError("Invalid scheduler command configuration for %s in %s: %s" % (scheduler_name, QTOPCONF_YAML, error)) from error
     if getattr(args, "source_archive", None):
         from qtop_py.trace_archive import load_trace_archive
@@ -100,8 +111,6 @@ def MVU_collect_snapshot(
             config, omitted = sample.sanitize_config(config, mappings)
             snapshot_config = copy.deepcopy(config)
             config["savepath"] = savepath
-            args.GET_GECOS = False
-            args.SHOW_GROUPS = False
             if archive is None:
                 raise OperationalError("Support archive was not initialized.")
             sample.save_snapshot(archive, cluster_state, snapshot_config, args, scheduler, __version__, omitted)
@@ -112,12 +121,16 @@ def MVU_collect_snapshot(
         else:
             built = collected if collected is not None else core_api.collect(backend, args.workdir, args, config=config, files=trace_paths)
             cluster_state = built.state
-    except (ValueError, UnicodeError, ParseError) as error:
+    except INPUT_ERRORS as error:
         raise OperationalError("Cannot parse %s scheduler input in %s: %s" % (scheduler, args.workdir, error)) from error
+    except ValueError as error:  # not raised as an input error: possibly a qtop bug, so say so
+        raise OperationalError(
+            "Cannot parse %s scheduler input in %s: unexpected %s: %s (possibly a qtop bug; -d shows the traceback)" % (scheduler, args.workdir, type(error).__name__, error)
+        ) from error
     if getattr(args, "ANONYMIZE", False) and not args.SAMPLE and not args.load_sample:  # -A: masked once, after the state is built
         cluster_state = sample.anonymize_state(cluster_state)[0]
-    # core_api.collect() already validated the state (unless -A replaced it); --demanding validates it again here.
-    prevalidated = built is not None and cluster_state is built.state and not getattr(args, "DEMANDING", False)
+    # core_api.collect() already validated the state (unless -A replaced it); --strict validates it again here.
+    prevalidated = built is not None and cluster_state is built.state and not getattr(args, "STRICT", False)
     collection = None if collected is None else (max(0, time.monotonic() - collected.completed), collected.completed - collected.started, collection_error)
     snapshot = Snapshot.from_cluster_state(cluster_state, validated=prevalidated, display_state=getattr(backend, "display_job_state", None), collection=collection)
     return snapshot, config
@@ -146,7 +159,7 @@ def make_collector(args: Any, config: Dict[str, Any], backend: Any, scheduler: s
             fallback = getattr(selected, "fallback_backend", None)
             if probed or fallback is None or not selected.capability_failure(error):
                 raise
-            logging.warning("%s collection capability unavailable: %s; falling back to %s. %s", scheduler, error, fallback.get_mnemonic(), getattr(selected, "fallback_note", ""))
+            logger.warning("%s collection capability unavailable: %s; falling back to %s. %s", scheduler, error, fallback.get_mnemonic(), getattr(selected, "fallback_note", ""))
             selected = fallback
             built = attempt()
         finally:

@@ -32,8 +32,9 @@ class BackendOptions(object):
 
     SOURCEDIR: read traces from this directory instead of running commands. Any other keyword
     becomes an attribute: a backend's own switches, with the names its add_cli_options() gives
-    them (e.g. Slurm's ALL_PARTITIONS, SLURM_SUMMARY, SLURM_JSON_SQUEUE). Backends read those
-    with getattr and a default, so an option left out means the default.
+    them (e.g. Slurm's ALL_PARTITIONS, SLURM_SUMMARY, SLURM_JSON_SQUEUE), or STRICT (--strict),
+    the one qtop-wide switch a backend reads (slurm_json stops on non-strict JSON). Backends read
+    those with getattr and a default, so an option left out means the default.
     """
 
     def __init__(self, SOURCEDIR: Optional[str] = None, **backend_options: Any) -> None:
@@ -47,12 +48,16 @@ def command_lines(backend: Type[GenericBatchSystem], entries: Mapping[str, str],
 
     Live collection adds the process ID to each file name; with options.SOURCEDIR the names are
     the plain trace names. The backend may adjust or drop a command (collection_command).
+    Raises ValueError naming the key of a malformed entry.
     """
     pid = "" if options.SOURCEDIR else "_" + str(os.getpid())
     lines = {}
     for key, entry in entries.items():
-        path, command = entry.strip().split(", ", 1)
-        path = path % {"savepath": workdir, "pid": pid}
+        try:
+            path, command = entry.strip().split(", ", 1)
+            path = path % {"savepath": workdir, "pid": pid}
+        except (AttributeError, KeyError, TypeError, ValueError) as error:
+            raise ValueError('%s: expected "output file, command" using only %%(savepath)s and %%(pid)s (%s: %s)' % (key, type(error).__name__, error)) from error
         # Format codes stay copyable; accept legacy escaped percent signs.
         command = command.replace("%%", "%").replace("%(savepath)s", workdir)
         adjusted = backend.collection_command(key, command, options)
