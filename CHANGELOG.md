@@ -3,6 +3,10 @@
 Notable changes by version, newest first. See the
 [roadmap](ROADMAP.md#now-validate-and-deliver-10) for 1.0 release gates.
 
+## 0.9.20261127
+
+- Release: update version metadata to 0.9.20261127
+
 ## 0.9.20261126
 
 - Cleanup: drop fileutils.safe_exit_with_file_close, which nothing called but its own test
