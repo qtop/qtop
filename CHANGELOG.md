@@ -9,14 +9,14 @@ Notable changes by version, newest first. See the
 
 ## 0.9.20261126
 
+- Bugfix: bad scheduler command entries name their key; backend bugs no longer pass as config errors
+- Bugfix: htcondor rejects CPU counts over 65536 instead of hanging; oar names a bad resource ID
+- Bugfix: node cores outside 0..np-1 are rejected as bad input, not a display crash (PBS fuzzing)
 - Cleanup: drop fileutils.safe_exit_with_file_close, which nothing called but its own test
 - Docs: documentation.md and qtop.1 cover Slurm 26.11 serializer/xjson and --strict for slurm_json
 - Feature: --strict replaces --demanding (kept as an alias) and also stops on non-strict Slurm JSON
 - Feature: backends raise SchedulerInputError; other ValueErrors are reported as possible qtop bugs
 - Feature: slurm_json reads xjson complex/json6 tokens (NaN, -NaN, \xNN), warning once per run
-- Fix: bad scheduler command entries name their key; backend bugs no longer pass as config errors
-- Fix: htcondor rejects CPU counts over 65536 instead of hanging; oar names a bad resource ID
-- Fix: node cores outside 0..np-1 are rejected as bad input, not a display crash (PBS fuzzing)
 - Refactor: CLI options stay as parsed; REMAP is Cluster.remap, -A -L masks GECOS/groups on read
 - Refactor: modules log via getLogger(__name__); ruff LOG015 now forbids logging.info() & co.
 - Refactor: slurm_json keeps per-version allocation layouts in a table, not v0.0.40 conditionals
