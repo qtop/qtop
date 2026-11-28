@@ -1,0 +1,3 @@
+free rank0/core[0-3]
+allocated rank0/core[4-7] rank1/core[0-7] rank[2-3]/core[0-7],gpu[0-3]
+down 

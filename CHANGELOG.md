@@ -10,6 +10,8 @@ Notable changes by version, newest first. See the
 - Docs: documentation.md describes -b flux and the backend guide's steps; ROADMAP tracks Flux
 - Feature: Flux backend (-b flux) reads flux jobs/resource/queue output; traces from flux-core 0.91
 - Feature: qtop --list-backends prints each backend's commands, as a qtopconf.yaml layer to copy
+- Feature: Flux GPUs show in the node matrix and accelerator_map; a sample has GPUs and shared nodes
+- Feature: qtop_py.testing lets a backend in another package check qtop's contract on its traces
 - Refactor: each sample directory holds its sample-gate.json case; no central table to edit
 - Refactor: -b auto tries backends in qtopconf.yaml's detection_order; plugins carry no priority
 - Refactor: qtopconf.yaml keeps no copy of backend commands; tests and docs pin no backend list

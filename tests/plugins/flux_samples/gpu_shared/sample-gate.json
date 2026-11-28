@@ -1,0 +1,13 @@
+{
+  "args": ["-F", "-o", "accelerator_map=after"],
+  "markers": [
+    "Summary : Total:4 Up:4 Free:4 Nodes",
+    "28/32 cpus",
+    "7=7+0+0 jobs",
+    "gpu_map/core_map",
+    "INFO: node3: gpu0-3=?",
+    "CPU placement: estimated",
+    "Worker Nodes occupancy",
+    "User accounts and pool mappings"
+  ]
+}

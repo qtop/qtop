@@ -5,5 +5,7 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 *.md text eol=lf
+# Captured scheduler output stays byte-for-byte, trailing blanks included (e.g. flux's empty "down " line).
+/tests/plugins/*_samples/** -whitespace
 /Makefile text eol=lf
 /qtop text eol=lf

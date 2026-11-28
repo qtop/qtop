@@ -10,8 +10,10 @@ from support import nodes_by_name, sample_backend
 
 from qtop_py import configuration
 from qtop_py.core_api import BackendOptions, SchedulerInputError
+from qtop_py.core_cluster_state import validate_cluster_state
 from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.flux import JOB_STATES, FluxBatchSystem, idset
+from qtop_py.schedulers import resources
 
 SAMPLE = Path(__file__).resolve().parent / "flux_samples" / "basic"
 TRACES = {
@@ -67,10 +69,39 @@ def test_jobs_sharing_a_node_split_its_allocated_cores_and_say_so(tmp_path):
     nodes = nodes_by_name(flux)
     assert nodes["n1"]["core_job_map"] == {0: "fA", 1: "fA", 2: "fB", 3: "fB"}  # fB: 2 cores on n1, 1 on n2
     assert nodes["n2"]["core_job_map"] == {3: "fB"}
+    assert (nodes["n1"]["cpu_allocation_source"], nodes["n2"]["cpu_allocation_source"]) == ("estimated", "scheduler")
     state = flux.get_cluster_state(BackendOptions())
-    assert state["flux_diagnostics"] == {"shared_nodes": 1}
-    notes = FluxBatchSystem.display_messages("snapshot", type("S", (), {"_diagnostics": state})(), [], {})
-    assert notes and "1 nodes run several jobs" in notes[0]
+    assert "flux_diagnostics" not in state  # estimates are the neutral placement source, noted for every backend
+    assert resources.messages("placement", state["nodes"], {})[0].startswith("WARNING: CPU placement: estimated")
+
+
+GPU_SAMPLE = SAMPLE.parent / "gpu_shared"
+
+
+def test_gpus_are_neutral_records_bound_only_where_a_job_runs_alone():
+    """Captured with GPUs: llm alone on node4; train, infer and gpuwait share node3's GPUs and cores."""
+    flux = sample_backend(FluxBatchSystem, GPU_SAMPLE, TRACES)
+    nodes = nodes_by_name(flux)
+    whole = {"type": None, "count": 4, "device_indices": [0, 1, 2, 3], "mig_profile": None, "parent_gpu_uuid": None}
+    assert nodes["node4"]["gpu_configured"] == nodes["node4"]["gpu_used"] == [whole]
+    assert nodes["node4"]["gpu_bindings"] == [dict(whole, job_id="\u0192XbcBKm")] and nodes["node4"]["cpu_allocation_source"] == "scheduler"
+    assert nodes["node3"]["gpu_used"] == [whole] and "gpu_bindings" not in nodes["node3"]  # three jobs: no holder is guessed
+    assert nodes["node3"]["cpu_allocation_source"] == nodes["node1"]["cpu_allocation_source"] == "estimated"
+    assert "gpu_configured" not in nodes["node1"] and nodes["node2"]["cpu_allocation_source"] == "scheduler"
+    state = validate_cluster_state(flux.get_cluster_state(BackendOptions()))
+    assert resources.messages("accelerators", state["nodes"], {}) == [
+        "INFO: Accelerators by node (job IDs, ? = unknown):",
+        "INFO: node3: gpu0-3=?",
+        "INFO: node4: gpu0-3=\u0192XbcBKm",
+    ]
+    masked = json.dumps(anonymize_state(state)[0])
+    assert "XbcBKm" not in masked and '"gpu_bindings"' in masked
+
+
+def test_estimated_cores_on_a_shared_node_are_its_allocated_ones():
+    """As instance owner, the capture also recorded each job's R: node1 cores 4-7 for pre1 and pre2 together."""
+    nodes = nodes_by_name(sample_backend(FluxBatchSystem, GPU_SAMPLE, TRACES))
+    assert sorted(nodes["node1"]["core_job_map"]) == [4, 5, 6, 7] and set(nodes["node1"]["core_job_map"].values()) == {"\u0192JpLNRM", "\u0192MFBCC7"}
 
 
 def test_allocated_cores_without_a_listed_job_are_unknown_and_excess_job_cores_are_counted(tmp_path):
@@ -80,6 +111,10 @@ def test_allocated_cores_without_a_listed_job_are_unknown_and_excess_job_cores_a
     assert nodes["n1"]["core_job_map"] == {2: "?", 3: "?"}
     assert nodes["n2"]["core_job_map"] == {0: "fA", 1: "fA"}
     assert flux.diagnostics == {"unowned_cores": 2, "unplaced_cores": 1}
+    snapshot = type("S", (), {"_diagnostics": flux.get_cluster_state(BackendOptions())})()
+    assert FluxBatchSystem.display_messages("snapshot", snapshot, [], {}) == [
+        "NOTE: Flux core ownership: 2 allocated cores have no listed job (?); 1 job cores exceed the allocation."
+    ]
 
 
 def test_core_ids_with_gaps_map_to_positions(tmp_path):
@@ -90,7 +125,7 @@ def test_core_ids_with_gaps_map_to_positions(tmp_path):
 
 
 def test_allocated_gpus_and_empty_status_states_are_ignored(tmp_path):
-    rlist = "free rank1/core[0-3]\nallocated rank0/core[0-1],gpu[0-1]\n"
+    rlist = "free rank1/core[0-3]\nallocated rank0/core[0-1],gpu[0-1],nic0\n"  # GPUs on a GPU-less node, and other kinds: ignored
     flux = backend(tmp_path, jobs_json={"jobs": [job("fA", nodelist="n1", ncores=2)]}, resource_json=R_TWO, rlist_file=rlist, status_file="avail n[1-2]\ndrained\n")
     nodes = nodes_by_name(flux)
     assert nodes["n1"]["core_job_map"] == {0: "fA", 1: "fA"} and nodes["n2"]["state"] == "-"

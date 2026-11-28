@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from qtop_py import configuration
+from qtop_py import configuration, testing
 from qtop_py import core_yaml_parser as yaml_parser
 from qtop_py.core_cluster_state import validate_cluster_state
 from qtop_py.schedulers import metadata, registry
@@ -41,14 +41,14 @@ def test_backend_is_configured_and_gated(mnemonic):
 
 
 @pytest.mark.parametrize("mnemonic", sorted(BACKENDS))
-def test_backend_extension_fields_are_declared_once(mnemonic):
-    backend = BACKENDS[mnemonic]
-    spec = backend.extensions
-    if spec is None:
-        assert backend.node_job_fields == (), "%s lists node job fields without an ExtensionSpec, so -A would not mask them" % mnemonic
-        return
-    assert any(spec is known for known in metadata.extensions().specs), "%r is not collected by metadata.extensions()" % spec
-    assert backend.node_job_fields == spec.node_job_fields
+def test_backend_meets_the_contract_other_packages_check_too(mnemonic):
+    """qtop_py.testing is what a backend in another package runs; qtop's own plugins pass it as well."""
+    testing.check_backend(BACKENDS[mnemonic])
+
+
+@pytest.mark.parametrize("case", [case for case in SAMPLE_CASES if "-s" in case["args"]], ids=lambda case: case["name"])
+def test_backend_sample_passes_the_library_check(case, tmp_path):
+    testing.check_sample(BACKENDS[case["scheduler"]], str(case["source"]), str(tmp_path))
 
 
 def test_extension_specs_do_not_overlap():

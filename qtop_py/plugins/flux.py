@@ -5,7 +5,8 @@
 Every trace is readable by any user of a system instance. A job's exact cores (its R) are
 not: only the job's owner and the instance owner may read them. So the cores in use come
 from `flux resource list` (exact), and a job takes its share of them on each of its nodes:
-exact where a node runs one job, estimated where several share it (flux_diagnostics).
+exact where a node runs one job, estimated where several share it (cpu_allocation_source).
+GPUs likewise: their use is exact, and they are bound to a job only on a node it runs alone.
 """
 
 import json
@@ -33,10 +34,16 @@ NODE_STATES: "Final" = {"avail": "-", "allocated": "-", "housekeeping": "b", "to
 ## Jobs of an instance without named queues; flux queue list prints its anonymous queue with no name.
 DEFAULT_QUEUE: "Final" = "default"
 MAX_RANKS: "Final" = HostlistParser.MAX_EXPANDED_NODES
+MAX_GPUS_PER_NODE: "Final" = 4096
 _RLIST_ITEM = re.compile(r"rank([0-9]+|\[[0-9,\-]+\])/(\S+)")
 _RLIST_CHILD = re.compile(r"([a-z]+)([0-9]+|\[[0-9,\-]+\])(?:,|$)")
 
-FLUX_EXTENSION: "Final" = ExtensionSpec("Flux", diagnostics=("flux_diagnostics", ("shared_nodes", "unowned_cores", "unplaced_cores")))
+FLUX_EXTENSION: "Final" = ExtensionSpec("Flux", diagnostics=("flux_diagnostics", ("unowned_cores", "unplaced_cores")))
+
+
+def _gpus(ids: List[int]) -> Dict[str, Any]:
+    """Return a neutral accelerator record (schedulers/resources.py) for these Flux GPU IDs."""
+    return {"type": None, "count": len(ids), "device_indices": list(ids), "mig_profile": None, "parent_gpu_uuid": None}
 
 
 def idset(text: str, limit: int) -> List[int]:
@@ -87,13 +94,12 @@ class FluxBatchSystem(GenericBatchSystem):
 
     @staticmethod
     def display_messages(section: str, snapshot: object, nodes: "List[Node]", config: "Config") -> List[str]:
-        """Say where core ownership is estimated or unknown, under the snapshot."""
+        """Say where allocated cores have no listed job, under the snapshot (estimates are a shared note)."""
         notes = getattr(snapshot, "_diagnostics", {}).get("flux_diagnostics", {})
         if section == "snapshot" and any(notes.values()):
             return [
-                "NOTE: Flux core ownership: %s nodes run several jobs, so which job holds which allocated core is estimated; "
-                "%s allocated cores have no listed job (?); %s job cores exceed the allocation."
-                % tuple(notes.get(key, 0) for key in ("shared_nodes", "unowned_cores", "unplaced_cores"))
+                "NOTE: Flux core ownership: %s allocated cores have no listed job (?); %s job cores exceed the allocation."
+                % tuple(notes.get(key, 0) for key in ("unowned_cores", "unplaced_cores"))
             ]
         return []
 
@@ -120,23 +126,29 @@ class FluxBatchSystem(GenericBatchSystem):
         return sum(queue["run"] for queue in queues.values()), sum(queue["queued"] for queue in queues.values()), list(queues.values())
 
     def get_worker_nodes(self, job_ids: List[str], job_queues: List[str], options: "Options") -> "List[Node]":
-        """Return one node per broker rank, its allocated cores owned by the jobs running there."""
-        hosts, cores = self._inventory()
+        """Return one node per broker rank, its allocated cores and GPUs owned by the jobs running there."""
+        hosts, cores, gpus = self._inventory()
         states = self._node_states()
         nodes: Dict[str, Dict[str, Any]] = OrderedDict()
         for rank, host in enumerate(hosts):
             nodes[host] = OrderedDict([("domainname", host), ("np", len(cores.get(rank, []))), ("core_job_map", {}), ("state", states.get(host, "?"))])
-        allocated = self._allocated(len(hosts))
+        allocated, allocated_gpus = self._allocated(len(hosts))
         shares: Dict[str, List[Tuple[str, int]]] = OrderedDict()
         for job in self._jobs():
             for host, count in job["shares"]:
                 shares.setdefault(host, []).append((job["id"], count))
-        diagnostics = {"shared_nodes": 0, "unowned_cores": 0, "unplaced_cores": 0}
+        diagnostics = {"unowned_cores": 0, "unplaced_cores": 0}
         for rank, host in enumerate(hosts):
             position = {core: index for index, core in enumerate(cores.get(rank, []))}
             free = [position[core] for core in sorted(allocated.get(rank, ())) if core in position]
             owners = shares.get(host, [])
-            diagnostics["shared_nodes"] += len(owners) > 1
+            if owners:
+                nodes[host]["cpu_allocation_source"] = "scheduler" if len(owners) == 1 else "estimated"
+            if gpus.get(rank):
+                used = sorted(set(gpus[rank]) & allocated_gpus.get(rank, set()))
+                nodes[host]["gpu_configured"], nodes[host]["gpu_used"] = [_gpus(gpus[rank])], [_gpus(used)]
+                if used and len(owners) == 1:  # a shared node's GPUs stay unattributed (?): no job's GPU count is visible
+                    nodes[host]["gpu_bindings"] = [dict(_gpus(used), job_id=owners[0][0])]
             for job_id, count in owners:
                 taken, free = free[:count], free[count:]
                 nodes[host]["core_job_map"].update((core, job_id) for core in taken)
@@ -147,8 +159,8 @@ class FluxBatchSystem(GenericBatchSystem):
         logger.info("worker_nodes contains %s entries", len(nodes))
         return self.ensure_worker_nodes_have_qnames(list(nodes.values()), job_ids, job_queues)
 
-    def _inventory(self) -> Tuple[List[str], Dict[int, List[int]]]:
-        """Return the host of each rank and each rank's core IDs, from flux resource R."""
+    def _inventory(self) -> Tuple[List[str], Dict[int, List[int]], Dict[int, List[int]]]:
+        """Return the host of each rank and each rank's core and GPU IDs, from flux resource R."""
         data = self._json("resource_json")
         execution = data.get("execution") if isinstance(data, dict) else None
         if not isinstance(execution, dict) or not isinstance(execution.get("R_lite"), list) or not isinstance(execution.get("nodelist"), list):
@@ -162,9 +174,10 @@ class FluxBatchSystem(GenericBatchSystem):
         if len(set(hosts)) != len(hosts):
             raise SchedulerInputError("flux resource R names a host twice")
         cores: Dict[int, List[int]] = {}
+        gpus: Dict[int, List[int]] = {}
         for entry in execution["R_lite"]:
             children = entry.get("children") if isinstance(entry, dict) else None
-            if not isinstance(entry.get("rank"), str) or not isinstance(children, dict) or not isinstance(children.get("core", ""), str):
+            if not isinstance(entry.get("rank"), str) or not isinstance(children, dict) or not all(isinstance(children.get(kind, ""), str) for kind in ("core", "gpu")):
                 raise SchedulerInputError("Invalid Flux R_lite entry %r" % (entry,))
             for rank in idset(entry["rank"], MAX_RANKS):
                 if rank >= len(hosts) or rank in cores:
@@ -172,11 +185,14 @@ class FluxBatchSystem(GenericBatchSystem):
                 cores[rank] = idset(children["core"], MAX_CORES_PER_NODE + 1) if children.get("core") else []
                 if len(cores[rank]) > MAX_CORES_PER_NODE or len(set(cores[rank])) != len(cores[rank]):
                     raise SchedulerInputError("Flux rank %d core IDs are repeated or exceed %d" % (rank, MAX_CORES_PER_NODE))
-        return hosts, cores
+                if children.get("gpu"):
+                    gpus[rank] = idset(children["gpu"], MAX_GPUS_PER_NODE)
+        return hosts, cores, gpus
 
-    def _allocated(self, ranks: int) -> Dict[int, Set[int]]:
-        """Return the allocated core IDs of each rank, from the allocated line of flux resource list."""
+    def _allocated(self, ranks: int) -> Tuple[Dict[int, Set[int]], Dict[int, Set[int]]]:
+        """Return the allocated core and GPU IDs of each rank, from the allocated line of flux resource list."""
         allocated: Dict[int, Set[int]] = {}
+        allocated_gpus: Dict[int, Set[int]] = {}
         for line in self._lines("rlist_file"):
             state, _, items = line.partition(" ")
             if state != "allocated":
@@ -190,7 +206,9 @@ class FluxBatchSystem(GenericBatchSystem):
                     for name, ids in children:
                         if name == "core":
                             allocated.setdefault(rank, set()).update(idset(ids, MAX_CORES_PER_NODE))
-        return allocated
+                        elif name == "gpu":
+                            allocated_gpus.setdefault(rank, set()).update(idset(ids, MAX_GPUS_PER_NODE))
+        return allocated, allocated_gpus
 
     def _node_states(self) -> Dict[str, str]:
         """Return each host's state marker from flux resource status; a trailing * (offline) is down."""
