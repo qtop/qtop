@@ -1,0 +1,14 @@
+{
+  "source": null,
+  "args": [
+    "-F"
+  ],
+  "markers": [
+    "This data is simulated",
+    "Summary : Total:",
+    "Nodes |",
+    "jobs (Total=R+Q+Other)",
+    "Worker Nodes occupancy",
+    "User accounts and pool mappings"
+  ]
+}

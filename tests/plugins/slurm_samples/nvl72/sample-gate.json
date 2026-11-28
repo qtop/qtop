@@ -1,0 +1,16 @@
+{
+  "args": [
+    "-F",
+    "-o",
+    "experimental_nvlink_blocks=true"
+  ],
+  "markers": [
+    "Summary : Total:36 Up:35 Free:15 Nodes",
+    "1368/5184 cpus",
+    "4=3+1+0 jobs",
+    "nvl72_01: 18 nodes (4 free, 14 busy), gpu 16/72 idle, jobs across blocks: 301",
+    "nvl72_02: 18 nodes (11 free, 6 busy), gpu 52/72 idle, jobs across blocks: 301",
+    "Worker Nodes occupancy",
+    "User accounts and pool mappings"
+  ]
+}

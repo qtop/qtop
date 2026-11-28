@@ -57,7 +57,7 @@ def idset(text: str, limit: int) -> List[int]:
 class FluxBatchSystem(GenericBatchSystem):
     """Flux backend; nodes are broker ranks, queues are Flux queues (or one anonymous queue)."""
 
-    detection_priority = 5  # -b auto: Slurm -2, Slurm JSON -1, PBS 0, OAR 1, SGE 2, LSF 3, HTCondor 4, Flux 5
+    detection_priority = 5  # last: the FluxCD Kubernetes tool is also called flux
     signature_command = "flux"
     default_commands = {
         "jobs_json": "%(savepath)s/flux_jobs%(pid)s.json, flux jobs -A --json",

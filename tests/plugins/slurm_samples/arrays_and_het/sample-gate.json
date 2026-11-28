@@ -1,0 +1,13 @@
+{
+  "args": [
+    "-F"
+  ],
+  "markers": [
+    "Summary : Total:2 Up:2 Free:0 Nodes",
+    "7/16 cpus",
+    "8=4+4+0 jobs",
+    "individual array tasks and heterogeneous components",
+    "Worker Nodes occupancy",
+    "User accounts and pool mappings"
+  ]
+}

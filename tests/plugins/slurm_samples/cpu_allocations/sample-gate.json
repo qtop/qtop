@@ -1,0 +1,14 @@
+{
+  "args": [
+    "-F"
+  ],
+  "markers": [
+    "Summary : Total:3 Up:3 Free:1 Nodes",
+    "6/24 cpus",
+    "3=2+1+0 jobs",
+    "scheduler CPU IDs",
+    "long*: 0 + 1",
+    "Worker Nodes occupancy",
+    "User accounts and pool mappings"
+  ]
+}

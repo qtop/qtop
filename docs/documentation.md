@@ -1848,8 +1848,9 @@ the CLI. Then:
 
 1. Add the default commands to the commented list in `qtopconf.yaml`
    (`tests/test_backend_discovery.py` checks the copy).
-2. Commit sample traces and their cases in `tools/validate_scheduler_samples.py`; the
-   sample gate runs every registered backend and fails without them.
+2. Commit sample traces in `tests/plugins/<mnemonic>_samples/<case>/`, each with a
+   `sample-gate.json` giving its extra arguments and expected output markers; the
+   sample gate finds them, runs every registered backend and fails without them.
 
 If its jobs or nodes carry fields beyond the neutral schema (array IDs, slot
 counts, job lists on nodes), describe them in one `ExtensionSpec`

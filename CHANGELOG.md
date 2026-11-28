@@ -9,6 +9,8 @@ Notable changes by version, newest first. See the
 - Docs: sonar-review.md records the e880da9 scan: scorecard permissions fixed, 12 findings as before
 - Docs: documentation.md describes -b flux; qtopconf.yaml and qtop.1 list it; ROADMAP tracks it
 - Feature: Flux backend (-b flux) reads flux jobs/resource/queue output; traces from flux-core 0.91
+- Refactor: each sample directory holds its sample-gate.json case; no central table to edit
+- Refactor: plugins state only their own detection_priority, not every backend's -b auto order
 - Tests: tests/plugins/test_flux.py, the plugin contract and the sample gate cover the Flux backend
 - Release: update version metadata to 0.9.20261127
 

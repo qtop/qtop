@@ -9,9 +9,9 @@ from types import SimpleNamespace
 import pytest
 
 from tools.validate_scheduler_samples import (
-    CASE_COLOUR_EXPECTATIONS,
     COMMON_COLOUR_EXPECTATIONS,
     ROOT,
+    SAMPLE_GATE_FILE,
     analyse_ansi_evidence,
     discover_cases,
     inspect_ansi,
@@ -51,7 +51,38 @@ def test_discover_cases_covers_every_registered_backend():
     assert any(name.startswith("slurm-") for name in names)
     assert all(case["colour_expectations"][: len(COMMON_COLOUR_EXPECTATIONS)] == COMMON_COLOUR_EXPECTATIONS for case in cases)
     sge_case = next(case for case in cases if case["name"] == "sge-contrib")
-    assert sge_case["colour_expectations"] == COMMON_COLOUR_EXPECTATIONS + CASE_COLOUR_EXPECTATIONS["sge-contrib"]
+    sge_spec = json.loads((ROOT / "tests/plugins/sge_samples/contrib" / SAMPLE_GATE_FILE).read_text())
+    assert sge_case["colour_expectations"] == COMMON_COLOUR_EXPECTATIONS + sge_spec["colour_expectations"]
+    assert sge_case["source"] == ROOT / "qtop_py/contrib" and sge_case["args"][:4] == ["-b", "sge", "-s", str(ROOT / "qtop_py/contrib")]
+    demo = next(case for case in cases if case["name"] == "demo-generated")
+    assert "-s" not in demo["args"] and demo["source"] == ROOT
+
+
+def test_a_backend_brings_its_cases_in_its_own_sample_directories(tmp_path, monkeypatch):
+    """Cases come from tests/plugins/<scheduler>_samples/<case>/sample-gate.json; none is listed centrally."""
+    case_dir = tmp_path / "toy_samples" / "basic"
+    case_dir.mkdir(parents=True)
+    (case_dir / SAMPLE_GATE_FILE).write_text(json.dumps({"args": ["-F", "-o", "x=1"], "markers": ["Summary"]}))
+    monkeypatch.setattr("tools.validate_scheduler_samples.SAMPLES_ROOT", tmp_path)
+    (case,) = discover_cases(["toy"], tmp_path / "unused")
+    assert case["name"] == "toy-basic" and case["source"] == case_dir and case["markers"] == ["Summary"]
+    assert case["args"] == ["-b", "toy", "-s", str(case_dir), "-c", "ON", "-F", "-o", "x=1"]
+    assert case["colour_expectations"] == COMMON_COLOUR_EXPECTATIONS
+
+
+@pytest.mark.parametrize(
+    "layout, message",
+    [({}, "No sample cases for toy"), ({"basic": None}, "Missing or unreadable"), ({"basic": {"args": []}}, "needs a markers list")],
+    ids=["no-samples", "no-gate-file", "no-markers"],
+)
+def test_a_backend_without_usable_sample_cases_stops_the_gate(tmp_path, monkeypatch, layout, message):
+    for name, spec in layout.items():
+        (tmp_path / "toy_samples" / name).mkdir(parents=True)
+        if spec is not None:
+            (tmp_path / "toy_samples" / name / SAMPLE_GATE_FILE).write_text(json.dumps(spec))
+    monkeypatch.setattr("tools.validate_scheduler_samples.SAMPLES_ROOT", tmp_path)
+    with pytest.raises(SystemExit, match=message):
+        discover_cases(["toy"], tmp_path / "unused")
 
 
 def test_shared_validation_cases_request_coloured_output():
