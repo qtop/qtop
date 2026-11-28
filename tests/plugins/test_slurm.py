@@ -335,7 +335,7 @@ def test_detailed_allocations_keep_sparse_cpu_ids_and_uneven_distribution(detail
     nodes = {node["domainname"]: node for node in state["nodes"]}
     assert nodes["node001"]["core_job_map"] == {4: "101", 0: "102", 2: "102"}
     assert nodes["node002"]["core_job_map"] == {1: "101", 3: "101", 5: "101"}
-    assert [node["cpu_allocation_source"] for node in state["nodes"]] == ["slurm", "slurm", "none"]
+    assert [node["cpu_allocation_source"] for node in state["nodes"]] == ["scheduler", "scheduler", "none"]
     assert nodes["node001"]["slurm_gres"] == "gpu:a100:4(S:0-1)"
     assert nodes["node002"]["slurm_gres_used"] == "gpu:a100:1(IDX:2)"
     assert state["jobs"][0]["slurm_tres_alloc"] == "cpu=4,gres/gpu=2"
@@ -389,7 +389,7 @@ def test_partial_details_do_not_mix_estimated_positions_with_exact_ids(detailed_
     path.write_text(path.read_text().split("JobId=102")[0])
     nodes = slurm.get_cluster_state(Options())["nodes"]
     assert nodes[0]["cpu_allocation_source"] == "estimated"
-    assert nodes[1]["cpu_allocation_source"] == "slurm"
+    assert nodes[1]["cpu_allocation_source"] == "scheduler"
     assert nodes[1]["core_job_map"] == {1: "101", 3: "101", 5: "101"}
 
 
@@ -398,7 +398,7 @@ def test_overlapping_cpu_allocations_use_estimates(detailed_slurm):
     path.write_text(path.read_text().replace("CPU_IDs=0,2", "CPU_IDs=4,6"))
     nodes = slurm.get_cluster_state(Options())["nodes"]
     assert nodes[0]["cpu_allocation_source"] == "estimated"
-    assert nodes[1]["cpu_allocation_source"] == "slurm"
+    assert nodes[1]["cpu_allocation_source"] == "scheduler"
 
 
 @pytest.mark.parametrize("header, job_id", [("JobId=501 ArrayJobId=101 ArrayTaskId=3", "101_3"), ("JobId=501 HetJobId=101 HetJobOffset=1", "101+1")])
@@ -417,7 +417,7 @@ def test_anonymized_details_preserve_provenance_and_mask_resource_text(detailed_
 
     slurm, _ = detailed_slurm
     state, mappings = anonymize_state(slurm.get_cluster_state(Options()))
-    assert state["nodes"][0]["cpu_allocation_source"] == "slurm"
+    assert state["nodes"][0]["cpu_allocation_source"] == "scheduler"
     assert "slurm_gres" not in state["nodes"][0]
     assert "slurm_tres_alloc" not in state["jobs"][0]
     assert state["nodes"][0]["core_job_map"]["4"] == mappings["job"]["101"]
@@ -515,7 +515,7 @@ def test_slurm_array_task_and_component_counts_match_cpu_ownership():
     assert [job["id"] for job in state["jobs"]] == ["101_1", "101_2", "101_3", "101_5", "101_7", "101_9", "201+0", "201+1"]
     assert state["nodes"][0]["core_job_map"] == {2: "101_1", 4: "101_1", 0: "201+0"}
     assert state["nodes"][1]["core_job_map"] == {1: "101_2", 5: "101_2", 3: "201+1", 7: "201+1"}
-    assert all(node["cpu_allocation_source"] == "slurm" for node in state["nodes"])
+    assert all(node["cpu_allocation_source"] == "scheduler" for node in state["nodes"])
 
 
 def test_slurm_free_text_cannot_supply_cpu_allocation_fields(detailed_slurm):
@@ -600,7 +600,7 @@ def test_explicit_array_fields_match_scontrol_internal_job_ids(detailed_slurm):
     assert state["jobs"][0]["slurm_array_job_id"] == "101"
     assert state["jobs"][0]["slurm_array_task_id"] == "3"
     assert state["nodes"][1]["core_job_map"] == {1: "101_3", 3: "101_3", 5: "101_3"}
-    assert state["nodes"][1]["cpu_allocation_source"] == "slurm"
+    assert state["nodes"][1]["cpu_allocation_source"] == "scheduler"
 
 
 @pytest.mark.parametrize("resources", [False, True])
@@ -668,6 +668,6 @@ def test_summary_mode_ignores_existing_details_and_keeps_reported_gpu_inventory(
     assert len(state["jobs"]) == 3
     assert sum(len(node["core_job_map"]) for node in state["nodes"]) == 6
     assert [node["cpu_allocation_source"] for node in state["nodes"]] == ["estimated", "estimated", "none"]
-    assert all("slurm_gpu_bindings" not in node for node in state["nodes"])
-    assert state["nodes"][0]["slurm_gpu_configured"][0]["count"] == 4
-    assert state["nodes"][0]["slurm_gpu_used"][0]["device_indices"] == [1]
+    assert all("gpu_bindings" not in node for node in state["nodes"])
+    assert state["nodes"][0]["gpu_configured"][0]["count"] == 4
+    assert state["nodes"][0]["gpu_used"][0]["device_indices"] == [1]

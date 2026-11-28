@@ -90,7 +90,9 @@ def mask_node_extensions(original: Mapping[str, Any], target: "Node", mask_job: 
 
 
 def node_is_idle(node: Mapping[str, Any]) -> bool:
-    """Return True if the node is free, runs no jobs and no extension field shows it in use."""
+    """Return True if the node is free, runs no jobs, uses no accelerator and no extension field shows it in use."""
+    from qtop_py.schedulers import resources  # imports gpu, which this module's importers may not need
+
     known = extensions()
     available = node["state"] == "-" and not node["core_job_map"] and not any(node.get(field) for field in known.node_job_fields)
-    return available and not any(spec.node_busy(node) for spec in known.specs)
+    return available and not resources.node_busy(node) and not any(spec.node_busy(node) for spec in known.specs)

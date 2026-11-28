@@ -2,12 +2,10 @@
 ## SPDX-License-Identifier: MIT
 """Slurm's extension fields (slurm_*) in a cluster state: owned by the slurm and slurm_json plugins."""
 
-import copy
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, cast
 
 from qtop_py.core_api import SchedulerInputError
 from qtop_py.schedulers.extensions import ExtensionSpec, Mask, MaskJob, nonempty_texts
-from qtop_py.schedulers.gpu import validate_gpu_resources
 
 if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.6 working
     from typing import Final
@@ -27,18 +25,16 @@ if TYPE_CHECKING:  # typing.Final is Python 3.8+; the quoted annotations keep 3.
         slurm_tres_per_task: str
 
     class SlurmNode(Node, total=False):
-        """A node with Slurm's state, topology block, extra job list, GRES text and CPU placement source."""
+        """A node with Slurm's state, topology block, extra job list, unmapped CPUs and GRES text."""
 
         slurm_node_state: str
         slurm_block: str
         slurm_job_ids: List[str]
         slurm_unmapped_cpus: int
-        cpu_allocation_source: str
         slurm_gres: str
         slurm_gres_used: str
 
 
-GPU_FIELDS: "Final" = ("slurm_gpu_configured", "slurm_gpu_used", "slurm_gpu_bindings")
 NODE_JOB_FIELDS: "Final" = ("slurm_job_ids",)
 JOB_IDENTITIES: "Final" = (("slurm_array_job_id", "slurm_array_task_id", "_"), ("slurm_het_job_id", "slurm_het_job_offset", "+"))
 
@@ -54,18 +50,13 @@ def validate_job(record: Dict[str, object]) -> None:
 
 
 def validate_node(record: Dict[str, object]) -> None:
-    """Raise ValueError if a node's Slurm state, block, GPU, CPU or allocation-source fields are malformed."""
+    """Raise ValueError if a node's Slurm state, block or unmapped-CPU count is malformed."""
     if "slurm_node_state" in record and not isinstance(record["slurm_node_state"], str):
         raise SchedulerInputError("slurm_node_state must be text")
     if "slurm_block" in record and not nonempty_texts([record["slurm_block"]]):
         raise SchedulerInputError("slurm_block must be nonempty text")
-    for field in GPU_FIELDS:
-        if field in record:
-            validate_gpu_resources(record[field], binding=field == "slurm_gpu_bindings")
     if "slurm_unmapped_cpus" in record and (type(record["slurm_unmapped_cpus"]) is not int or record["slurm_unmapped_cpus"] < 0):
         raise SchedulerInputError("slurm_unmapped_cpus must be a nonnegative integer")
-    if "cpu_allocation_source" in record and record["cpu_allocation_source"] not in ("slurm", "estimated", "none"):
-        raise SchedulerInputError("node cpu_allocation_source must be slurm, estimated or none")
 
 
 def mask_job(original: Mapping[str, Any], job: Dict[str, object], mask: Mask) -> None:
@@ -78,16 +69,9 @@ def mask_job(original: Mapping[str, Any], job: Dict[str, object], mask: Mask) ->
 
 
 def mask_node(original: Mapping[str, Any], node: Dict[str, Any], mask_job_id: MaskJob) -> None:
-    """Copy node state and CPU fields, job IDs (masked), then GPUs with types, UUIDs and bound jobs masked."""
-    node.update({field: original[field] for field in ("slurm_node_state", "slurm_unmapped_cpus", "cpu_allocation_source") if field in original})
+    """Copy node state and CPU fields and job IDs (masked); accelerators are neutral (schedulers/resources.py)."""
+    node.update({field: original[field] for field in ("slurm_node_state", "slurm_unmapped_cpus") if field in original})
     node.update({field: [mask_job_id(value) for value in original[field]] for field in NODE_JOB_FIELDS if field in original})
-    for field in GPU_FIELDS:
-        if field in original:
-            node[field] = copy.deepcopy(original[field])
-            for resource in node[field]:
-                resource["type"] = resource["parent_gpu_uuid"] = None
-                if field == "slurm_gpu_bindings":
-                    resource["job_id"] = mask_job_id(resource["job_id"])
 
 
 def mask_node_names(original: Mapping[str, Any], node: Dict[str, Any], mask: Mask) -> None:
@@ -97,8 +81,8 @@ def mask_node_names(original: Mapping[str, Any], node: Dict[str, Any], mask: Mas
 
 
 def node_busy(node: Mapping[str, Any]) -> bool:
-    """True if Slurm reports the node not idle or any of its GPUs in use."""
-    return node.get("slurm_node_state", "idle").lower() != "idle" or any(resource["count"] for resource in node.get("slurm_gpu_used", []))
+    """True if Slurm reports the node not idle (accelerators in use are a neutral test)."""
+    return str(node.get("slurm_node_state", "idle")).lower() != "idle"
 
 
 SLURM_EXTENSION: "Final" = ExtensionSpec(

@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 from qtop_py.core_errors import SchedulerInputError
 from qtop_py.core_safety import MAX_CORES_PER_NODE
+from qtop_py.schedulers import resources
 from qtop_py.schedulers.metadata import extensions, validate_diagnostics, validate_record_extensions
 
 CLUSTER_STATE_KEYS: "Final" = ("jobs", "nodes", "queues")
@@ -171,8 +172,31 @@ def _validate_workload_parents(jobs: List[Dict[str, object]]) -> None:
         visited.update(path)
 
 
+def _validate_node(record: Dict[str, object]) -> None:
+    """Check a node's core count, queues and core map; upgrade and check its neutral resource fields."""
+    resources.upgrade_node(record)  # pre-neutral names in older exports and snapshots
+    resources.validate_node(record)
+    np = record.get("np")
+    if isinstance(np, bool) or not isinstance(np, (str, int)):
+        raise SchedulerInputError("node np must be a nonnegative integer or integer string")
+    if int(np) < 0:
+        raise SchedulerInputError("node np must be nonnegative")
+    if int(np) > MAX_CORES_PER_NODE:
+        raise SchedulerInputError("node np must not exceed %d cores" % MAX_CORES_PER_NODE)
+    qnames, cores = record.get("qname"), record.get("core_job_map")
+    if not isinstance(qnames, list) or any(queue is not None and not isinstance(queue, str) for queue in cast(List[object], qnames)):
+        raise TypeError("node qname must be a list of strings or nulls")
+    if not isinstance(cores, dict) or not _core_job_map_types_valid(cast(Dict[object, object], cores)):
+        raise TypeError("node core_job_map must map integer/string cores to string job IDs")
+    _check_core_positions(record.get("domainname"), int(np), cast(Dict[object, object], cores))
+
+
 def validate_cluster_state(cluster_state: object) -> "ClusterState":
-    """Validate imported records before claiming the static snapshot contract."""
+    """Validate imported records before claiming the static snapshot contract.
+
+    Node fields written before they were scheduler-neutral (slurm_gpu_*, placement source slurm)
+    are renamed in place, so old exports and snapshots load as current ones.
+    """
     data = _record(cluster_state, "cluster state")
     version = _schema_version(data)
     validate_diagnostics(data)
@@ -188,26 +212,14 @@ def validate_cluster_state(cluster_state: object) -> "ClusterState":
                 raise TypeError("%s record requires text fields: %s" % (key, ", ".join(fields)))
             if "parent_qid" in record:
                 _validate_parent_reference(key, record, version, qid_prefix)
+            if key == "nodes":
+                _validate_node(record)
             validate_record_extensions(key, record)
             if "qid" in record or "kind" in record:
                 _validate_identity(key, record, qid_prefix, qids[key])
             if key == "jobs" and "accounting_state" in record and record["accounting_state"] not in ("running", "queued", "other"):
                 raise SchedulerInputError("job accounting_state must be running, queued or other")
-            if key == "nodes":
-                np = record.get("np")
-                if isinstance(np, bool) or not isinstance(np, (str, int)):
-                    raise SchedulerInputError("node np must be a nonnegative integer or integer string")
-                if int(np) < 0:
-                    raise SchedulerInputError("node np must be nonnegative")
-                if int(np) > MAX_CORES_PER_NODE:
-                    raise SchedulerInputError("node np must not exceed %d cores" % MAX_CORES_PER_NODE)
-                qnames, cores = record.get("qname"), record.get("core_job_map")
-                if not isinstance(qnames, list) or any(queue is not None and not isinstance(queue, str) for queue in cast(List[object], qnames)):
-                    raise TypeError("node qname must be a list of strings or nulls")
-                if not isinstance(cores, dict) or not _core_job_map_types_valid(cast(Dict[object, object], cores)):
-                    raise TypeError("node core_job_map must map integer/string cores to string job IDs")
-                _check_core_positions(record.get("domainname"), int(np), cast(Dict[object, object], cores))
-            elif key == "queues":
+            if key == "queues":
                 for field in ("running", "queued"):
                     count = record.get(field)
                     if type(count) is not int or count < 0:

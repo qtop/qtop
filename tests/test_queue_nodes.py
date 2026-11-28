@@ -36,7 +36,7 @@ def node(name, queues, **extra):
         ],
         pytest.param(
             "slurm",
-            [node("node001", ["batch"], state="d"), node("node002", ["batch"], slurm_gpu_used=[{"count": 1}])],
+            [node("node001", ["batch"], state="d"), node("node002", ["batch"], gpu_used=[{"count": 1}])],
             ["batch"],
             [("batch", 0, 2)],
             id="slurm-disabled-and-gpu-allocated-nodes-are-busy",

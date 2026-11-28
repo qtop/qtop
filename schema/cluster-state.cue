@@ -44,6 +44,10 @@ package schema
         unlisted_jobs?: int & >=0
         shared_resources?: int & >=0
     }
+    flux_diagnostics?: {
+        unowned_cores?: int & >=0
+        unplaced_cores?: int & >=0
+    }
 }
 #Job: {
     id: string, user: string, state: string, queue: string

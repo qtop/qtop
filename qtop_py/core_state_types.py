@@ -47,11 +47,12 @@ if TYPE_CHECKING:
         job_id: str
 
     class NodeResources(TypedDict, total=False):
-        """Optional node fields; slurm_gpu_* stay here while the shared schedulers/gpu.py reads them."""
+        """Optional neutral node fields: accelerators and CPU-placement source (schedulers/resources.py)."""
 
-        slurm_gpu_configured: List[GPUResource]
-        slurm_gpu_used: List[GPUResource]
-        slurm_gpu_bindings: List[GPUBinding]
+        gpu_configured: List[GPUResource]
+        gpu_used: List[GPUResource]
+        gpu_bindings: List[GPUBinding]
+        cpu_allocation_source: str  # scheduler, estimated or none
         qid: str  # schema 2 qualified ID "<backend>:<cluster_id>:<id>", unique in the observation
 
     class Node(NodeResources):

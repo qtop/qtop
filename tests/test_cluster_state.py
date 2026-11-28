@@ -85,6 +85,19 @@ def test_cluster_state_rejects_invalid_shapes(invalid):
         validate_cluster_state(invalid)
 
 
+def test_states_from_before_neutral_node_fields_load_as_current_ones():
+    """Exports and snapshots from before 0.9.20261127 named the accelerator fields slurm_gpu_* and the source slurm."""
+    state = sample_state()
+    gpu = {"type": None, "count": 1, "device_indices": [0], "mig_profile": None, "parent_gpu_uuid": None}
+    state["nodes"][0].update(slurm_gpu_configured=[gpu], slurm_gpu_used=[gpu], cpu_allocation_source="slurm")
+    node = validate_cluster_state(state)["nodes"][0]
+    assert node["gpu_configured"] == node["gpu_used"] == [gpu] and node["cpu_allocation_source"] == "scheduler"
+    assert not any(key.startswith("slurm_gpu_") for key in node)
+    state["nodes"][0]["slurm_gpu_used"] = [gpu]
+    with pytest.raises(SchedulerInputError, match="both slurm_gpu_used and gpu_used"):
+        validate_cluster_state(state)
+
+
 @pytest.mark.parametrize("source", [[], {}, None, "physical"])
 def test_cluster_state_rejects_invalid_cpu_allocation_source(source):
     state = sample_state()

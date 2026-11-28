@@ -18,7 +18,7 @@ from qtop_py.core_serialiser import GenericBatchSystem
 from qtop_py.mvu import MVU_Model
 from qtop_py.plugins.slurm import SlurmArrayIdError
 from qtop_py.plugins.slurm_json import UnsupportedSlurmJSON
-from qtop_py.schedulers import collector, registry
+from qtop_py.schedulers import collector, registry, resources
 from qtop_py.ui import mvu_view
 
 
@@ -178,12 +178,13 @@ def test_detection_only_considers_explicit_registered_backends(monkeypatch, nati
     (
         ([], []),
         ([{"cpu_allocation_source": "estimated"}], ["WARNING"]),
-        ([{"cpu_allocation_source": "slurm"}], ["INFO"]),
-        ([{"cpu_allocation_source": "estimated", "slurm_unmapped_cpus": 2}, {"cpu_allocation_source": "slurm"}], ["WARNING", "INFO", "WARNING"]),
+        ([{"cpu_allocation_source": "scheduler"}], ["INFO"]),
+        ([{"cpu_allocation_source": "estimated", "slurm_unmapped_cpus": 2}, {"cpu_allocation_source": "scheduler"}], ["WARNING", "INFO", "WARNING"]),
     ),
 )
-def test_slurm_placement_message_severity(nodes, levels):
-    messages = qtop.scheduler_backend("slurm").display_messages("placement", SimpleNamespace(), nodes, {})
+def test_placement_notes_are_shared_and_slurm_adds_its_own(nodes, levels):
+    """The CPU placement source is a neutral note for every backend; Slurm adds what its matrix omits."""
+    messages = resources.messages("placement", nodes, {}) + qtop.scheduler_backend("slurm").display_messages("placement", SimpleNamespace(), nodes, {})
     assert [message.split(":", 1)[0] for message in messages] == levels
 
 

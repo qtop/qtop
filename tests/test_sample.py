@@ -139,7 +139,7 @@ def test_archive_source_selects_matching_pid_traces_with_cpu_details(tmp_path):
         result = run_cli(tmp_path / ("home_%s" % index), "-b", "slurm", "-s", str(location), "-E", "-O", "-o", "savepath=" + str(output))
         assert result.returncode == 0, result.stderr
         state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
-        assert state["nodes"][0]["cpu_allocation_source"] == "slurm"
+        assert state["nodes"][0]["cpu_allocation_source"] == "scheduler"
         if expected is None:
             expected = state
         assert state == expected
@@ -469,7 +469,7 @@ def test_slurm_cpu_details_and_resources_survive_snapshot_replay(tmp_path, anony
     captured = run_cli(tmp_path / "capture_home", "-b", "slurm", "-s", str(source), "-L", "-E", "-O", "-o", "savepath=" + str(output), *flags)
     assert captured.returncode == 0, captured.stderr
     expected = json.loads(next(output.glob("qtop_json_*.json")).read_text())
-    assert expected["nodes"][0]["cpu_allocation_source"] == "slurm"
+    assert expected["nodes"][0]["cpu_allocation_source"] == "scheduler"
     if sample_name == "cpu_allocations":
         assert any(queue["state"] == "drain" for queue in expected["queues"])
     assert ("slurm_tres_alloc" in expected["jobs"][0]) is not anonymous

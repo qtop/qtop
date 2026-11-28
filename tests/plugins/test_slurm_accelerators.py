@@ -11,6 +11,7 @@ from qtop_py.core_api import BackendOptions
 from qtop_py.core_cluster_state import validate_cluster_state
 from qtop_py.core_sample import anonymize_state
 from qtop_py.plugins.slurm import SlurmBatchSystem
+from qtop_py.schedulers import resources
 from qtop_py.schedulers.gpu import accelerator_map_lines, parse_accelerator_gres, parse_gpu_gres
 from qtop_py.snapshot import Snapshot
 
@@ -84,17 +85,17 @@ def test_unknown_usage_is_a_question_mark_not_idle(tmp_path):
 @pytest.mark.parametrize("field,value", [("kind", "fpga"), ("kind", 1), ("mig_profile", "1g.10gb")])
 def test_imported_tpu_records_are_validated(tmp_path, field, value):
     state = slurm_state(tmp_path, "node1|acc|mix|8|tpu:4(IDX:0-3)|tpu:0(IDX:N/A)\n", "")
-    state["nodes"][0]["slurm_gpu_configured"][0][field] = value
+    state["nodes"][0]["gpu_configured"][0][field] = value
     with pytest.raises(ValueError):
         validate_cluster_state(state)
 
 
-def test_the_map_is_its_own_slurm_section(tmp_path):
+def test_the_map_is_a_shared_section_slurm_does_not_repeat(tmp_path):
     state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:8(IDX:0-7)|gpu:0(IDX:N/A)\n", "")
-    shown = SlurmBatchSystem.display_messages("accelerators", None, state["nodes"], {})
+    shown = resources.messages("accelerators", state["nodes"], {})
     assert shown == ["INFO: Accelerators by node (job IDs, ? = unknown):", "INFO: node1: gpu0-7=idle"]
     assert SlurmBatchSystem.display_messages("resources", None, state["nodes"], {}) == []
-    assert SlurmBatchSystem.display_messages("accelerators", None, [{"domainname": "cpu1"}], {}) == []
+    assert resources.messages("accelerators", [{"domainname": "cpu1"}], {}) == []
 
 
 @pytest.mark.parametrize(
@@ -240,7 +241,7 @@ def test_unknown_accelerator_kinds_are_a_config_error():
 def test_hidden_kinds_leave_the_matrix_and_the_job_id_lines(tmp_path):
     state = slurm_state(tmp_path, "node1|acc|mix|8|gpu:2(IDX:0-1),npu:4(IDX:0-3)|gpu:0(IDX:N/A),npu:0(IDX:N/A)\n", "")
     assert accelerator_map_lines(state["nodes"], ("npu",)) == ["node1: npu0-3=idle"]
-    assert SlurmBatchSystem.display_messages("accelerators", None, state["nodes"], {"matrix_accelerators": ()}) == []
+    assert resources.messages("accelerators", state["nodes"], {"matrix_accelerators": ()}) == []
     rows = [line for line in _qtop(tmp_path, "-o", "matrix_accelerators=none") if line[:2] in ("1|", "2|")]
     assert rows == ["1|1_0_0___|b|c|", "2|_0_1_0_1|b|c|"]  # CPUs only, as before GPUs were shown
     assert "gpu_map" not in "\n".join(_qtop(tmp_path, "-o", "matrix_accelerators=none"))
@@ -314,7 +315,7 @@ def test_mig_slices_follow_the_whole_gpus_with_their_users_or_percent(tmp_path):
     (node,) = state["nodes"]
     assert (node_devices(node, "gpu"), node_slices(node, "gpu")) == ([0, 1], [2, 3, 4, 5])
     assert [slice_jobs(node, "gpu", index) for index in (2, 3, 4)] == [["101"], ["102"], []]
-    assert node_slices({"slurm_gpu_configured": parse_accelerator_gres("gpu:a100_3g.20gb:2(IDX:6-7)")}, "gpu") == [6, 7]
+    assert node_slices({"gpu_configured": parse_accelerator_gres("gpu:a100_3g.20gb:2(IDX:6-7)")}, "gpu") == [6, 7]
     assert accelerator_map_lines(state["nodes"]) == ["node1: gpu0=101 gpu1=idle mig2=101 mig3=102"]  # held slices only
 
 

@@ -14,6 +14,8 @@ Notable changes by version, newest first. See the
 - Refactor: -b auto tries backends in qtopconf.yaml's detection_order; plugins carry no priority
 - Refactor: qtopconf.yaml keeps no copy of backend commands; tests and docs pin no backend list
 - Refactor: backends type their own fields; the base class stores each one's diagnostics
+- Refactor: node fields gpu_* and cpu_allocation_source are neutral; slurm_gpu_*/slurm still load
+- Refactor: the CUE schema accepts flux_diagnostics beside the Slurm and OAR counters
 - Tests: tests/plugins/test_flux.py, the plugin contract and the sample gate cover the Flux backend
 - Release: update version metadata to 0.9.20261127
 

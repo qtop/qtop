@@ -460,19 +460,9 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 + SlurmBatchSystem._unreadable_gres_messages(nodes)
                 + SlurmBatchSystem._unseen_holder_messages(nodes, kinds, all_partitions)
             )
-        if section == "accelerators":
-            return SlurmBatchSystem._accelerator_messages(nodes, config.get("matrix_accelerators", ACCELERATOR_KINDS))
         if section == "resources":
             return SlurmBatchSystem._block_messages(nodes, config) + (SlurmBatchSystem._gpu_pair_messages(nodes, config) if config.get("experimental_gpu_pairs") else [])
         return []
-
-    @staticmethod
-    def _accelerator_messages(nodes: "List[Node]", kinds: Sequence[str] = ACCELERATOR_KINDS) -> List[str]:
-        """List each node's GPUs, TPUs and NPUs with their jobs; the view places them (accelerator_map)."""
-        from qtop_py.schedulers.gpu import accelerator_map_lines
-
-        lines = accelerator_map_lines(nodes, kinds)
-        return ["INFO: Accelerators by node (job IDs, ? = unknown):"] + ["INFO: " + line for line in lines] if lines else []
 
     @staticmethod
     def _block_messages(nodes: "List[Node]", config: "Config") -> List[str]:
@@ -561,15 +551,9 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
 
     @staticmethod
     def _placement_messages(nodes: "List[Node]") -> List[str]:
-        """Say where CPU placement is estimated or comes from Slurm, and what the matrix omits."""
+        """Say what the Slurm CPU matrix omits; the CPU placement source is a shared note (schedulers/resources.py)."""
         lines = []
-        typed = slurm_nodes(nodes)
-        sources = {node.get("cpu_allocation_source") for node in typed}
-        if "estimated" in sources:
-            lines.append("WARNING: Slurm CPU placement: estimated where allocation details are unavailable.")
-        if "slurm" in sources:
-            lines.append("INFO: Slurm CPU placement: scheduler CPU IDs; Linux task affinity is not shown.")
-        omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in typed)
+        omitted = sum(node.get("slurm_unmapped_cpus", 0) for node in slurm_nodes(nodes))
         if omitted:
             lines.append("WARNING: Slurm CPU matrix omits %s shared/excess CPU assignments; job/node membership is retained." % omitted)
         return lines
@@ -579,8 +563,8 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         """Name the nodes whose sinfo Gres/GresUsed qtop could not read, what that hides, and what to check."""
         lines = []
         for raw, parsed, field, effect in (
-            ("slurm_gres", "slurm_gpu_configured", "Gres", "their accelerators are not shown"),
-            ("slurm_gres_used", "slurm_gpu_used", "GresUsed", "their accelerators without a job show ?"),
+            ("slurm_gres", "gpu_configured", "Gres", "their accelerators are not shown"),
+            ("slurm_gres_used", "gpu_used", "GresUsed", "their accelerators without a job show ?"),
         ):
             unread = [node for node in nodes if parsed not in node and any(kind + ":" in str(node.get(raw, "")) for kind in ACCELERATOR_KINDS)]
             if unread:
@@ -939,7 +923,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
 
     def _apply_gpu_allocations(self, worker_nodes: Dict[str, Dict[str, Any]], job_hosts: Optional[Callable[[Mapping[str, Any]], List[str]]] = None) -> None:
         for node in worker_nodes.values():
-            for raw, parsed in (("slurm_gres", "slurm_gpu_configured"), ("slurm_gres_used", "slurm_gpu_used")):
+            for raw, parsed in (("slurm_gres", "gpu_configured"), ("slurm_gres_used", "gpu_used")):
                 if raw in node:
                     try:
                         node[parsed] = parse_accelerator_gres(node[raw])
@@ -959,7 +943,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
                 continue
             for host, resources in allocation.items():
                 if host in worker_nodes:
-                    bindings = worker_nodes[host].setdefault("slurm_gpu_bindings", [])
+                    bindings = worker_nodes[host].setdefault("gpu_bindings", [])
                     bindings.extend(dict(resource, job_id=job_id) for resource in resources)
 
     def _read_gpu_allocations(self) -> Tuple[Dict[str, Any], Set[str]]:
@@ -1066,7 +1050,7 @@ class SlurmBatchSystem(GenericBatchSystem, HostlistParser):
         for host, node in worker_nodes.items():
             if exact[host] and host not in estimated:
                 node["core_job_map"] = exact[host]
-                node["cpu_allocation_source"] = "slurm"
+                node["cpu_allocation_source"] = "scheduler"
             else:
                 node["cpu_allocation_source"] = "estimated" if host in estimated else "none"
 

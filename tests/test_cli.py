@@ -678,11 +678,11 @@ def test_live_slurm_collects_suspended_jobs_and_optional_hidden_partitions(tmp_p
     assert (tmp_path / "scontrol.called").exists() == (not summary)
     if summary:
         assert all(node["cpu_allocation_source"] == "estimated" for node in state["nodes"])
-        assert all("slurm_gpu_bindings" not in node for node in state["nodes"])
+        assert all("gpu_bindings" not in node for node in state["nodes"])
     if all_partitions:
         assert state["nodes"][1]["core_job_map"] == ({"0": "102", "1": "102"} if summary else {"2": "102", "3": "102"})
         if not summary:
-            assert state["nodes"][1]["slurm_gpu_bindings"][0]["device_indices"] == [2, 3]
+            assert state["nodes"][1]["gpu_bindings"][0]["device_indices"] == [2, 3]
 
 
 def test_malformed_scheduler_command_quotes_are_actionable(tmp_path):
@@ -958,7 +958,7 @@ def test_default_live_slurm_details_command_failure_keeps_monitoring(tmp_path, a
     assert result.returncode == 0, result.stderr
     state = json.loads(next(output.glob("qtop_json_*.json")).read_text())
     assert len(state["jobs"]) == 3
-    assert state["nodes"][0]["cpu_allocation_source"] == ("slurm" if available else "estimated")
+    assert state["nodes"][0]["cpu_allocation_source"] == ("scheduler" if available else "estimated")
 
 
 def test_slurm_array_tasks_and_heterogeneous_components_render_consistently(tmp_path):

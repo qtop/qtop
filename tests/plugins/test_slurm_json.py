@@ -59,11 +59,11 @@ def test_versions_preserve_inventory_identities_allocations_and_gpu(json_files, 
     assert nodes["node01"]["qname"] == ["debug", "batch"]
     assert nodes["node01"]["core_job_map"] == {4: "80+1", 5: "80+1", 0: "80+0", 1: "80+0"}
     assert nodes["node02"]["core_job_map"] == {index: "80+1" for index in range(4)}
-    assert nodes["node01"]["cpu_allocation_source"] == nodes["node02"]["cpu_allocation_source"] == "slurm"
-    resource = nodes["node02"]["slurm_gpu_bindings"][0]
+    assert nodes["node01"]["cpu_allocation_source"] == nodes["node02"]["cpu_allocation_source"] == "scheduler"
+    resource = nodes["node02"]["gpu_bindings"][0]
     assert resource == {"job_id": "80+1", "type": "a100_1g.5gb", "count": 1, "device_indices": [1], "mig_profile": "1g.5gb", "parent_gpu_uuid": None}
-    assert nodes["node01"]["slurm_gpu_configured"][0]["type"] == "a100"
-    assert nodes["node01"]["slurm_gpu_used"][0]["device_indices"] == [3]
+    assert nodes["node01"]["gpu_configured"][0]["type"] == "a100"
+    assert nodes["node01"]["gpu_used"][0]["device_indices"] == [3]
     legacy = tmp_path / "scontrol.txt"
     legacy.write_text("JobId=80+1\n Nodes=node01 CPU_IDs=4-5\n Nodes=node02 CPU_IDs=0-3\nJobId=80+0\n Nodes=node01 CPU_IDs=0-1\n")
     old = SlurmBatchSystem({"scontrol_file": str(legacy)}, {}, system.options)._read_cpu_allocations()
@@ -278,7 +278,7 @@ def test_null_optional_inventory_does_not_invent_gpu_counts(json_files):
     system = backend(json_files)
     node = system.get_cluster_state(system.options)["nodes"][2]
     assert node["qname"] == []
-    assert "slurm_gpu_configured" not in node and "slurm_gpu_used" not in node
+    assert "gpu_configured" not in node and "gpu_used" not in node
 
 
 def test_nonintegral_core_indices_cannot_be_truncated(json_files):
